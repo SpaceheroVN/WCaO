@@ -1,297 +1,607 @@
 @echo off
 setlocal enabledelayedexpansion
-title Windows Cleanup ^& Optimizer v4.1.1 - Pro Toolkit (Auto ^& Expert)
+title "Windows Cleanup & Optimizer v5.0.1 - Pro Toolkit (Auto & Expert)"
 
-:: ===== CONFIG / LOG SETUP =====
-set "VERSION=4.1.1"
-set "TOOLNAME=Windows Cleanup & Optimizer"
-set "SCRIPT_DIR=%~dp0"
-if "%SCRIPT_DIR:~-1%"=="\" set "SCRIPT_DIR=%SCRIPT_DIR:~0,-1%"
+:: ==========================================
+:: ===== CONFIGURATION - CUSTOMIZE HERE =====
+:: ==========================================
+set "VERSION=5.0.1"
+set "TOOLNAME=Windows Cleanup and Optimizer"
 
-:: Unified timestamp
-for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value 2^>nul') do set "NOW=%%i"
-set "YYYY=%NOW:~0,4%" & set "MM=%NOW:~4,2%" & set "DD=%NOW:~6,2%" & set "HH=%NOW:~8,2%" & set "MN=%NOW:~10,2%"
-set "TIME_TAG=%DD%-%MM%_%HH%-%MN%"
+:: Log Configuration
+:: Base directory for logs within the user's local app data.
+set "BASE_DIR=%LocalAppData%\WCaO_Toolkit"
+:: How many days to keep old log files.
+set "LOG_RETENTION_DAYS=7"
 
-set "BASE_LOG_DIR=%LocalAppData%\Windows_CaO\Logs"
-if not exist "%BASE_LOG_DIR%" mkdir "%BASE_LOG_DIR%" >nul 2>&1
-forfiles /p "%BASE_LOG_DIR%" /m "log_*.txt" /d -3 /c "cmd /c del @path" >nul 2>&1
+:: Default Expert Mode (0 = Off, 1 = On)
+set "DEFAULT_EXPERT_MODE=0"
 
-set "ACTIONS_LOGFILE=%BASE_LOG_DIR%\Actions.log"
-> "%ACTIONS_LOGFILE%" echo Actions log started: %date% %time%
+:: Color Configuration (For color codes, type: color /?)
+set "COLOR_MENU=0B"       :: Light Aqua   - Main Menu
+set "COLOR_QUICK=0A"      :: Light Green  - Quick Cleanup
+set "COLOR_DEEP=09"       :: Light Blue   - Deep Cleanup
+set "COLOR_OPTIMIZE=0D"   :: Light Purple - Optimization
+set "COLOR_ADVANCED=0C"   :: Light Red    - Advanced Tools
+set "COLOR_FINISH=0E"     :: Light Yellow - Finish and Report
+set "COLOR_ERROR=4F"      :: Red BG, White Text - Error Messages
+set "COLOR_WARNING=6F"    :: Yellow BG, White Text - Warning Messages
 
-set "OS_DRIVE=" & set "EXPERT_MODE=0"
+:: ===============================================================
+:: ===== SCRIPT INITIALIZATION (Do not edit below this line) =====
+:: ===============================================================
+
+set "EXPERT_MODE=%DEFAULT_EXPERT_MODE%"
+set "TMP_LOGFILE=%BASE_DIR%\Actions.tmp"
+set "ERROR_LOGFILE=%BASE_DIR%\Errors.log"
+
+:: Create base directory if it doesn't exist
+if not exist "%BASE_DIR%" mkdir "%BASE_DIR%" >nul 2>&1
+
+:: --- ROBUSTNESS CHECK: Verify that the working directory was created ---
+if not exist "%BASE_DIR%\" (
+    cls & color %COLOR_ERROR%
+    call :DrawBox "CRITICAL ERROR"
+    echo.
+    echo  Could not create the working directory:
+    echo  "%BASE_DIR%"
+    echo.
+    echo  Please check your user permissions or antivirus settings.
+    echo  The script cannot continue without this directory.
+    echo.
+    pause
+    exit /b
+)
+
+:: On start, clean up temp log from a previous improper exit
+if exist "%TMP_LOGFILE%" del "%TMP_LOGFILE%" >nul 2>&1
+
+:: Start a fresh temporary log for the current session
+call :CreateNewTempLog
+
+:: Clean up old permanent logs from the base directory
+forfiles /p "%BASE_DIR%" /m "Log_*.txt" /d -%LOG_RETENTION_DAYS% /c "cmd /c del @path" >nul 2>&1
 
 :: ===== ADMIN CHECK =====
 >nul 2>&1 net session || (
-  cls & color 04
-  echo =========================================
-  echo  ERROR: Run this script AS ADMINISTRATOR
-  echo =========================================
-  echo. & pause & exit /b
+    cls & color %COLOR_ERROR%
+    call :DrawBox "ERROR: ADMINISTRATOR PRIVILEGES REQUIRED"
+    echo.
+    echo  This script must be run with administrative privileges to function correctly.
+    echo.
+    echo  To fix this:
+    echo  1. Close this window.
+    echo  2. Right-click the script file.
+    echo  3. Select 'Run as administrator'.
+    echo.
+    pause >nul
+    exit /b
 )
 
 :: ===== DETECT OS DRIVE =====
+:: Robustly get the system drive, stripping any leading/trailing spaces
 for /f "tokens=2 delims==" %%A in ('wmic os get systemdrive /value 2^>nul') do (
-    set "OS_DRIVE=%%A"
+    for /f "tokens=*" %%B in ("%%A") do set "OS_DRIVE=%%B"
 )
 if not defined OS_DRIVE set "OS_DRIVE=C:"
-if "%OS_DRIVE:~-1%"==":" (
-    rem valid
-) else set "OS_DRIVE=%OS_DRIVE%:"
+if "%OS_DRIVE:~-1%" NEQ ":" set "OS_DRIVE=%OS_DRIVE%:"
 
+
+:: =====================
 :: ===== MAIN MENU =====
+:: =====================
 :main_menu
-cls & color 0E
+cls & color %COLOR_MENU%
 call :DrawBox "%TOOLNAME% - v%VERSION%"
+set "expert_status=Off"
+if "!EXPERT_MODE!"=="1" set "expert_status=On"
 echo.
-echo OS Drive detected: %OS_DRIVE%
+echo  System Drive: %OS_DRIVE%
 echo.
-echo [1] Quick Cleanup
-echo [2] Deep Cleanup
-echo [3] System Optimization
-echo [4] Advanced Tools
-echo [5] Auto Run Full Maintenance (Safe)
-echo [6] Toggle Expert Mode (Current: %EXPERT_MODE%)
-echo [7] Export Report
-echo [8] Exit
+echo  [1] Quick Cleanup
+echo  [2] Deep Cleanup
+echo  [3] System Optimization
+echo  [4] Advanced Tools
+echo  [5] Auto Run Full Maintenance
 echo.
-set /p "choice=Choose (1-8): "
-if "%choice%"=="1" call :QuickClean & goto finish
-if "%choice%"=="2" call :DeepClean & goto finish
-if "%choice%"=="3" call :SystemOptimize & goto finish
-if "%choice%"=="4" call :AdvancedMenu & goto finish
-if "%choice%"=="5" call :AutoRun & goto finish
-if "%choice%"=="6" (if "%EXPERT_MODE%"=="0" (set "EXPERT_MODE=1") else (set "EXPERT_MODE=0")) & goto main_menu
-if "%choice%"=="7" call :ExportReport & goto finish
-if "%choice%"=="8" exit /b
+echo  --------------------------------------
+echo  [6] Toggle Expert Mode (Current: !expert_status!)
+echo  [7] Export Report
+echo  [8] Exit
+echo.
+set /p "choice=  Please choose an option (1-8): "
+if "%choice%"=="1" call :QuickClean & goto main_menu
+if "%choice%"=="2" call :DeepClean & goto main_menu
+if "%choice%"=="3" call :SystemOptimizeMenu & goto main_menu
+if "%choice%"=="4" call :AdvancedMenu & goto main_menu
+if "%choice%"=="5" call :AutoRun & goto main_menu
+if "%choice%"=="6" (if "!EXPERT_MODE!"=="0" (set "EXPERT_MODE=1") else (set "EXPERT_MODE=0")) & goto main_menu
+if "%choice%"=="7" call :ExportReport & goto main_menu
+if "%choice%"=="8" (
+    :: Delete temp log on clean exit
+    if exist "%TMP_LOGFILE%" del "%TMP_LOGFILE%" >nul 2>&1
+    exit /b
+)
+:: Loop back to main menu if invalid input
 goto main_menu
 
-:: ===== QUICK CLEAN =====
+:: ============================================
+:: ===== CLEANUP & OPTIMIZATION FUNCTIONS =====
+:: ============================================
+
+:: ===== QUICK CLEANUP =====
 :QuickClean
-cls & color 06 & call :DrawBox "QUICK CLEANUP"
+cls & color %COLOR_QUICK% & call :DrawBox "QUICK CLEANUP"
 echo.
-call :CleanDir "%temp%" "User Temp"
-call :CleanDir "%SystemRoot%\Temp" "System Temp"
-call :CleanDir "%SystemRoot%\Prefetch" "Prefetch"
-call :CleanDir "%APPDATA%\Microsoft\Windows\Recent" "Recent Shortcuts"
-echo [+] Emptying Recycle Bin...
-rd /s /q "%OS_DRIVE%\$Recycle.Bin" 2>nul && (
-  echo [+] Recycle Bin cleared
-  call :LogAction "Recycle Bin cleared"
-) || echo [-] Recycle Bin not found/skipped
+call :CleanDir "%temp%" "User Temp folder"
+call :CleanDir "%SystemRoot%\Temp" "System Temp folder"
+call :CleanDir "%SystemRoot%\Prefetch" "Prefetch folder"
+call :CleanDir "%APPDATA%\Microsoft\Windows\Recent" "Recent shortcuts"
+echo  [+] Emptying Recycle Bin...
+:: Attempt to delete the Recycle Bin contents. Using a loop for robust deletion.
+for /d %%D in ("%OS_DRIVE%\$Recycle.Bin\*") do (
+    rd /s /q "%%D" >nul 2>&1
+)
+if exist "%OS_DRIVE%\$Recycle.Bin\" (
+    echo      [-] Recycle Bin not fully cleared or inaccessible.
+    call :LogError "Recycle Bin not fully cleared or inaccessible."
+) else (
+    echo      [OK] Recycle Bin has been cleared.
+    call :LogAction "Recycle Bin cleared"
+)
+call :PauseToContinue
 goto :EOF
 
-:: ===== DEEP CLEAN =====
+:: ===== DEEP CLEANUP =====
 :DeepClean
-cls & call :DrawBox "DEEP CLEANUP"
-echo [+] Running DISM RestoreHealth...
-Dism /Online /Cleanup-Image /RestoreHealth >nul
-set "rc=%errorlevel%"
-if %rc% equ 0 (call :LogAction "DISM OK") else call :LogAction "DISM ERR %rc%"
-echo [+] Running SFC /scannow...
+cls & color %COLOR_DEEP% & call :DrawBox "DEEP CLEANUP"
+echo.
+echo  [+] Running DISM RestoreHealth... This may take a long time. Please wait.
+echo.
+Dism /Online /Cleanup-Image /RestoreHealth
+set "rc=!errorlevel!"
+if !rc! equ 0 (
+    echo. & echo      [OK] DISM completed successfully.
+    call :LogAction "DISM OK"
+) else (
+    echo. & echo      [ERROR] DISM finished with error code !rc!. Check logs for details.
+    call :LogAction "DISM ERR !rc!"
+    call :LogError "DISM failed with error code !rc!"
+)
+echo.
+echo  [+] Running SFC /scannow... This may also take some time.
+echo.
 sfc /scannow
-set "rc=%errorlevel%"
-if %rc% equ 0 (call :LogAction "SFC OK") else call :LogAction "SFC ERR %rc%"
-echo [+] Running Disk Cleanup...
-cleanmgr /sagerun:65535 >nul 2>&1
-call :LogAction "cleanmgr executed"
+set "rc=!errorlevel!"
+if !rc! equ 0 (
+    echo. & echo      [OK] SFC completed successfully.
+    call :LogAction "SFC OK"
+) else (
+    echo. & echo      [ERROR] SFC finished with error code !rc!. Check logs for details.
+    call :LogAction "SFC ERR !rc!"
+    call :LogError "SFC failed with error code !rc!"
+)
+echo.
+echo  [+] Running Disk Cleanup on essential items...
+:: The /autoclean switch is more reliable than /sagerun as it cleans all default locations.
+cleanmgr /autoclean >nul 2>&1
+call :LogAction "cleanmgr /autoclean executed"
+echo      [OK] Disk Cleanup has been executed.
+call :BrowserCleanup
+call :PauseToContinue
 goto :EOF
 
-:: ===== SYSTEM OPTIMIZATION =====
-:SystemOptimize
-cls & call :DrawBox "SYSTEM OPTIMIZATION"
-echo [+] Checking disk integrity...
-chkdsk %OS_DRIVE% /scan
-call :LogAction "chkdsk /scan executed"
-echo [+] Running defrag/trim...
-defrag %OS_DRIVE% /O /L /V >nul 2>&1
-call :LogAction "defrag executed"
-echo [+] Rebuilding icon & thumbnail caches...
-taskkill /f /im explorer.exe >nul 2>&1
-timeout /t 2 >nul
-del /a /f /q "%localappdata%\IconCache.db" >nul 2>&1
-del /a /f /q "%localappdata%\Microsoft\Windows\Explorer\thumbcache_*.db" >nul 2>&1
-start explorer.exe
-call :LogAction "Icon cache rebuilt"
-echo [+] Restarting Windows Search...
-sc query "WSearch" >nul 2>&1 && (
-  net stop "WSearch" >nul 2>&1
-  net start "WSearch" >nul 2>&1
-  call :LogAction "WSearch restarted"
-) || echo [-] WSearch not present
+:: ===== BROWSER CLEANUP =====
+:BrowserCleanup
+echo. & call :DrawBox "BROWSER CACHE CLEANUP"
+echo.
+echo  [+] Closing browser processes to release file locks...
+taskkill /f /im chrome.exe >nul 2>&1
+taskkill /f /im msedge.exe >nul 2>&1
+taskkill /f /im firefox.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo  [+] Clearing browser caches for ALL user profiles...
+:: This logic loops through all profile folders (Profile 1, Profile 2, Default, etc.)
+for /d %%d in ("%LocalAppData%\Google\Chrome\User Data\*") do (
+    if /i not "%%~nxd"=="System Profile" (
+        call :CleanDir "%%d\Cache\*" "Google Chrome Cache (%%~nxd)"
+    )
+)
+for /d %%d in ("%LocalAppData%\Microsoft\Edge\User Data\*") do (
+    if /i not "%%~nxd"=="System Profile" (
+        call :CleanDir "%%d\Cache\*" "Microsoft Edge Cache (%%~nxd)"
+    )
+)
+for /d %%p in ("%LocalAppData%\Mozilla\Firefox\Profiles\*") do (
+    call :CleanDir "%%p\cache2\entries" "Mozilla Firefox Cache (%%~nxp)"
+)
+echo  [+] Browser cache cleanup complete.
+call :LogAction "Browser caches cleaned"
 goto :EOF
 
-:: ===== ADVANCED MENU =====
+:: ===================================
+:: ===== MENUS and SUB-FUNCTIONS =====
+:: ===================================
+
+:: ===== SYSTEM OPTIMIZATION MENU =====
+:SystemOptimizeMenu
+:SubSystemOptimizeMenu
+cls & color %COLOR_OPTIMIZE% & call :DrawBox "SYSTEM OPTIMIZATION"
+echo.
+echo  [1] Check Disk Integrity (Scan only)
+echo  [2] Defrag / Trim Drive
+echo  [3] Rebuild System Caches (Icons, Thumbnails)
+echo  [4] Optimize Power Plan
+echo  [5] Optimize Visual Effects
+echo  [6] Back to Main Menu
+echo.
+set "opt="
+set /p "opt=  Please choose an option (1-6): "
+if "%opt%"=="1" (cls & call :DrawBox "CHECK DISK" & echo. & chkdsk %OS_DRIVE% /scan & call :LogAction "chkdsk /scan executed" & pause)
+if "%opt%"=="2" (cls & call :DrawBox "DEFRAG / TRIM" & echo. & defrag %OS_DRIVE% /O /L & call :LogAction "defrag executed" & pause)
+if "%opt%"=="3" (
+    cls & call :DrawBox "REBUILD CACHES" & echo.
+    echo  [+] Rebuilding icon & thumbnail caches...
+    taskkill /f /im explorer.exe >nul 2>&1 & timeout /t 1 /nobreak >nul
+    del /a /f /q "%localappdata%\IconCache.db" >nul 2>&1
+    del /a /f /q "%localappdata%\Microsoft\Windows\Explorer\thumbcache_*.db" >nul 2>&1
+    start "" explorer.exe & call :LogAction "Icon/Thumbnail cache rebuilt"
+    echo  [+] Restarting Windows Search Service...
+    sc query "WSearch" >nul 2>&1 && (net stop "WSearch" >nul 2>&1 & net start "WSearch" >nul 2>&1 & call :LogAction "WSearch restarted" & echo      [OK] WSearch service has been restarted.) || echo      [-] WSearch service not found or couldn't be restarted.
+    echo. & echo  [+] Done. & pause
+)
+if "%opt%"=="4" (call :SetPowerPlan)
+if "%opt%"=="5" (call :SetVisualEffects)
+if "%opt%"=="6" (goto :EOF)
+goto SubSystemOptimizeMenu
+
+:: ===== ADVANCED TOOLS MENU =====
 :AdvancedMenu
-cls & call :DrawBox "ADVANCED TOOLS"
+:SubAdvancedMenu
+cls & color %COLOR_ADVANCED% & call :DrawBox "ADVANCED TOOLS"
 echo.
-echo [1] Clear Windows Update Cache
-echo [2] Remove Windows.old (Expert)
-echo [3] Pagefile / Hibernation (Expert)
-echo [4] Network Reset ^& Flush DNS
-echo [5] Create System Restore Point
-echo [6] Back
+echo  [1] Clear Windows Update Cache
+echo  [2] Remove Windows.old folder (Expert)
+echo  [3] Manage Pagefile / Hibernation (Expert)
+echo  [4] Network Reset ^& Flush DNS
+echo  [5] Create System Restore Point
+echo  [6] Back to Main Menu
 echo.
-set /p "adv=Choose (1-6): "
-if "%adv%"=="1" call :ClearWinUpdate & goto AdvancedMenu
-if "%adv%"=="2" if "%EXPERT_MODE%"=="1" (call :RemoveWindowsOld) else (echo [-] Expert mode required & pause)
-if "%adv%"=="3" if "%EXPERT_MODE%"=="1" (call :PagefileMenu) else (echo [-] Expert mode required & pause)
-if "%adv%"=="4" call :NetReset
-if "%adv%"=="5" call :CreateRestorePoint
-if "%adv%"=="6" goto main_menu
-goto AdvancedMenu
+set "adv="
+set /p "adv=  Please choose an option (1-6): "
+if "%adv%"=="1" (call :ClearWinUpdate & pause)
+if "%adv%"=="2" (if "!EXPERT_MODE!"=="1" (call :RemoveWindowsOld & pause) else (echo. & color %COLOR_WARNING% & echo  [WARNING] This function requires Expert Mode. & color %COLOR_ADVANCED% & pause))
+if "%adv%"=="3" (if "!EXPERT_MODE!"=="1" (call :PagefileMenu) else (echo. & color %COLOR_WARNING% & echo  [WARNING] This function requires Expert Mode. & color %COLOR_ADVANCED% & pause))
+if "%adv%"=="4" (call :NetReset & pause)
+if "%adv%"=="5" (call :CreateRestorePoint & pause)
+if "%adv%"=="6" (goto :EOF)
+goto SubAdvancedMenu
 
-:: ===== CLEAR WINDOWS UPDATE CACHE =====
+:: ===== ADVANCED SUB-FUNCTIONS =====
+
 :ClearWinUpdate
-cls & call :DrawBox "CLEAR WINDOWS UPDATE CACHE"
+cls & call :DrawBox "CLEAR WINDOWS UPDATE CACHE" & echo.
+echo  [+] Stopping required services...
 net stop wuauserv >nul 2>&1
 net stop bits >nul 2>&1
 net stop cryptsvc >nul 2>&1
-if exist "%windir%\SoftwareDistribution" (
-  rd /s /q "%windir%\SoftwareDistribution"
-  call :LogAction "SoftwareDistribution removed"
-)
-if exist "%windir%\System32\catroot2" (
-  rd /s /q "%windir%\System32\catroot2"
-  call :LogAction "catroot2 removed"
-)
+echo  [+] Deleting cache folders...
+if exist "%windir%\SoftwareDistribution" (rd /s /q "%windir%\SoftwareDistribution" & echo      [OK] Removed SoftwareDistribution folder. & call :LogAction "SoftwareDistribution removed")
+if exist "%windir%\System32\catroot2" (rd /s /q "%windir%\System32\catroot2" & echo      [OK] Removed catroot2 folder. & call :LogAction "catroot2 removed")
+echo  [+] Restarting services...
 net start cryptsvc >nul 2>&1
 net start bits >nul 2>&1
 net start wuauserv >nul 2>&1
-pause
+echo  [+] Done.
 goto :EOF
 
-:: ===== REMOVE WINDOWS.OLD =====
 :RemoveWindowsOld
-cls & call :DrawBox "REMOVE WINDOWS.OLD"
+cls & color %COLOR_WARNING% & call :DrawBox "REMOVE WINDOWS.OLD FOLDER" & echo.
 set "WINOLD=%OS_DRIVE%\Windows.old"
 if exist "%WINOLD%" (
-  echo WARNING: Permanent removal.
-  set /p "confirm=Type YES to continue: "
-  if /i "%confirm%"=="YES" (
-    takeown /F "%WINOLD%" /R /D Y >nul
-    icacls "%WINOLD%" /grant Administrators:F /T >nul
-    rd /s /q "%WINOLD%"
-    call :LogAction "Windows.old removed"
-  ) else echo Cancelled.
-) else echo No Windows.old found.
-pause
+    echo  WARNING: This action is IRREVERSIBLE and will permanently delete the
+    echo  Windows.old folder. You will NOT be able to revert to the previous
+    echo  version of Windows after doing this.
+    echo.
+    set /p "confirm=  Type 'YES' to continue: "
+    if /i "%confirm%"=="YES" (
+        echo.
+        echo  [*] Taking ownership of the folder...
+        takeown /F "%WINOLD%" /R /D Y >nul
+        icacls "%WINOLD%" /grant *S-1-5-32-544:F /T >nul
+        echo  [*] Deleting the folder... This may take a moment.
+        rd /s /q "%WINOLD%"
+        if not exist "%WINOLD%" (
+            echo  [+] Done. Folder removed successfully.
+            call :LogAction "Windows.old removed"
+        ) else (
+            color %COLOR_ERROR%
+            echo  [ERROR] Failed to remove the folder. It might be in use or permissions issue.
+            call :LogError "Failed to remove Windows.old folder."
+        )
+    ) else ( echo. & echo  Cancelled by user. )
+) else ( echo  Windows.old folder not found. )
+color %COLOR_ADVANCED%
 goto :EOF
 
-:: ===== PAGEFILE / HIBERNATION =====
 :PagefileMenu
-cls & call :DrawBox "PAGEFILE & HIBERNATION"
-echo [1] Disable automatic pagefile
-echo [2] Delete pagefile.sys
-echo [3] Disable Hibernation
-echo [4] Back
+:SubPagefileMenu
+cls & call :DrawBox "PAGEFILE & HIBERNATION MANAGEMENT" & echo.
+echo  [1] Disable Automatic Pagefile Management
+echo  [2] Disable Hibernation (removes hiberfil.sys)
+echo  [3] Back
 echo.
-set /p "pf=Choose (1-4): "
+set "pf="
+set /p "pf=  Please choose (1-3): "
 if "%pf%"=="1" (
-  wmic computersystem where name="%computername%" set AutomaticManagedPagefile=False >nul
-  reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v PagingFiles /t REG_MULTI_SZ /d "" /f >nul
-  call :LogAction "Pagefile disabled (reboot required)"
+    wmic computersystem where name="%computername%" set AutomaticManagedPagefile=False >nul
+    :: Ensure PagingFiles registry entry is cleared for proper disablement
+    reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v PagingFiles /t REG_MULTI_SZ /d "" /f >nul
+    echo. & echo  [+] Automatic pagefile management disabled (reboot required). & call :LogAction "Pagefile management disabled" & pause
 )
 if "%pf%"=="2" (
-  del /f /q "%OS_DRIVE%\pagefile.sys" >nul 2>&1 && call :LogAction "pagefile.sys deleted"
+    powercfg -h off && (echo. & echo  [+] Hibernation has been disabled. & call :LogAction "Hibernation disabled") || (echo. & echo  [-] Could not disable Hibernation. Check admin rights.)
+    pause
 )
-if "%pf%"=="3" (
-  powercfg -h off && call :LogAction "Hibernation disabled"
-)
-if "%pf%"=="4" goto AdvancedMenu
-pause
-goto PagefileMenu
+if "%pf%"=="3" (goto :EOF)
+goto SubPagefileMenu
 
-:: ===== NETWORK RESET & DNS FLUSH =====
 :NetReset
-cls & call :DrawBox "NETWORK RESET"
-ipconfig /flushdns >nul && call :LogAction "DNS flushed"
-netsh winsock reset >nul && call :LogAction "Winsock reset"
-netsh int ip reset >nul && call :LogAction "TCP/IP reset"
-netsh interface ip delete arpcache >nul && call :LogAction "ARP cache cleared"
-pause
+cls & call :DrawBox "NETWORK RESET AND FLUSH DNS" & echo.
+ipconfig /flushdns >nul && echo  [+] Flushed DNS cache. & call :LogAction "DNS flushed"
+netsh winsock reset >nul && echo  [+] Winsock has been reset. & call :LogAction "Winsock reset"
+netsh int ip reset >nul && echo  [+] TCP/IP has been reset. & call :LogAction "TCP/IP reset"
+echo  [+] Done. A reboot is recommended to apply all changes.
 goto :EOF
 
-:: ===== CREATE RESTORE POINT =====
 :CreateRestorePoint
-cls & call :DrawBox "CREATE RESTORE POINT"
-powershell -Command "Try { Checkpoint-Computer -Description 'ProToolkit_Backup' -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop; Write-Host 'OK' } Catch { Write-Host 'ERR' }" > "%temp%\rp_result.txt"
-set /p rpresult=<"%temp%\rp_result.txt"
-del "%temp%\rp_result.txt" >nul
-if /i "%rpresult%"=="OK" (call :LogAction "Restore point created") else call :LogAction "Restore point failed"
-pause
+cls & call :DrawBox "CREATE SYSTEM RESTORE POINT" & echo.
+echo  [+] Enabling System Restore and creating a point...
+powershell -Command "Enable-ComputerRestore -Drive '%OS_DRIVE%'" >nul 2>&1
+for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value 2^>nul') do set "RP_TIME=%%i"
+set "RP_DESC=ProToolkit_Backup_%RP_TIME:~0,8%_%RP_TIME:~8,6%"
+powershell -Command "Checkpoint-Computer -Description '%RP_DESC%' -RestorePointType 'MODIFY_SETTINGS'"
+if %errorlevel% equ 0 (
+    echo      [OK] Restore point '%RP_DESC%' created successfully.
+    call :LogAction "Restore point created: %RP_DESC%"
+) else (
+    echo      [ERROR] Failed to create restore point.
+    echo      Please check your System Protection settings in Control Panel.
+    call :LogAction "Restore point creation failed"
+    call :LogError "Restore point creation failed. User should check System Protection."
+)
 goto :EOF
 
-:: ===== AUTO RUN =====
+:: ===== OPTIMIZATION SUB-FUNCTIONS =====
+
+:SetPowerPlan
+:SubSetPowerPlan
+cls & color %COLOR_OPTIMIZE% & call :DrawBox "OPTIMIZE POWER PLAN" & echo.
+echo  [+] Searching for available power plans...
+echo.
+set "HP_GUID=" & set "UP_GUID=" & set "BAL_GUID="
+for /f "tokens=3,4* delims=: " %%g in ('powercfg /list ^| findstr /C:"("') do (
+    set "guid=%%g" & set "name=%%h %%i"
+    echo      GUID: !guid!
+    echo      Name: !name:~2,-1!
+    echo.
+    if /i "!name:~2,-1!"=="High performance" set "HP_GUID=!guid!"
+    if /i "!name:~2,-1!"=="Ultimate Performance" set "UP_GUID=!guid!"
+    if /i "!name:~2,-1!"=="Balanced" set "BAL_GUID=!guid!"
+)
+
+if not defined UP_GUID (
+    echo  [*] Ultimate Performance plan not found. Trying to import it...
+    :: GUID for Ultimate Performance
+    powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 >nul 2>&1
+    if !errorlevel! equ 0 (
+        echo      [OK] Successfully imported Ultimate Performance. Reopening menu to select.
+        call :LogAction "Imported Ultimate Performance power plan"
+        pause
+        goto SubSetPowerPlan :: Re-scan plans to show new option
+    ) else (
+        echo      [-] Failed to import Ultimate Performance. Your Windows version may not support it.
+    )
+    echo.
+)
+
+echo  --------------------------------------
+echo  [1] High Performance
+if defined UP_GUID echo  [2] Ultimate Performance
+echo  [3] Balanced (Default)
+echo  [4] Back
+echo.
+set "pp="
+set /p "pp=  Choose a plan to activate: "
+if "%pp%"=="1" if defined HP_GUID (powercfg /s %HP_GUID% & echo. & echo  [+] High Performance activated. & call :LogAction "Power plan set to High Performance")
+if "%pp%"=="2" if defined UP_GUID (powercfg /s %UP_GUID% & echo. & echo  [+] Ultimate Performance activated. & call :LogAction "Power plan set to Ultimate Performance")
+if "%pp%"=="3" (
+    :: Ensure Balanced plan is available, then activate it.
+    if not defined BAL_GUID powercfg -duplicatescheme 381b4222-f694-41f0-9685-ff5bb260df2e >nul 2>&1
+    powercfg /s 381b4222-f694-41f0-9685-ff5bb260df2e & echo. & echo  [+] Balanced activated. & call :LogAction "Power plan set to Balanced"
+)
+if "%pp%"=="4" (goto :EOF)
+pause
+goto SubSetPowerPlan
+
+:SetVisualEffects
+:SubSetVisualEffects
+cls & call :DrawBox "OPTIMIZE VISUAL EFFECTS" & echo.
+echo  [1] Adjust for best performance (disables most animations)
+echo  [2] Let Windows choose what's best (Default)
+echo  [3] Back
+echo.
+set "ve="
+set /p "ve=  Please choose an option (1-3): "
+if "%ve%"=="1" (
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFxSetting" /t REG_DWORD /d 2 /f >nul
+    reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012038010000000 /f >nul
+    echo. & echo  [+] Visual effects set for best performance.
+    echo      A log off or reboot is required to apply changes.
+    call :LogAction "Visual effects set for best performance"
+    pause
+)
+if "%ve%"=="2" (
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFxSetting" /t REG_DWORD /d 0 /f >nul
+    :: Reset UserPreferencesMask to default (This GUID might vary slightly, but 9012018010000000 is a common default)
+    reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012018010000000 /f >nul 2>&1
+    echo. & echo  [+] Restored default visual effects settings.
+    call :LogAction "Visual effects set to default"
+    pause
+)
+if "%ve%"=="3" (goto :EOF)
+goto SubSetVisualEffects
+
+:: ===== AUTO RUN FULL MAINTENANCE =====
 :AutoRun
-cls & call :DrawBox "AUTO RUN - FULL MAINTENANCE"
-echo This will run Quick -> Deep -> System Optimize -> Clear Update Cache.
-set /p "confirm=Type A to start: "
-if /i not "%confirm%"=="A" (echo Cancelled & pause & goto main_menu)
+cls & color %COLOR_DEEP% & call :DrawBox "AUTO RUN - FULL MAINTENANCE"
+echo.
+echo  This will automatically run the following sequence:
+echo  Quick Cleanup -^> Deep Cleanup -^> Key Optimizations -^> Clear Update Cache
+echo.
+color %COLOR_WARNING%
+set /p "confirm=  Type 'AUTO' to start, or anything else to cancel: "
+color %COLOR_DEEP%
+if /i not "%confirm%"=="AUTO" (echo. & echo  Cancelled by user. & pause & goto :EOF)
+echo.
 call :LogAction "AutoRun started"
 call :QuickClean
 call :DeepClean
-call :SystemOptimize
+echo.
+echo  [+] Running automated optimizations...
+defrag %OS_DRIVE% /O /L >nul 2>&1
+call :LogAction "AutoRun defrag executed"
+taskkill /f /im explorer.exe >nul 2>&1 & timeout /t 2 >nul
+del /a /f /q "%localappdata%\IconCache.db" >nul 2>&1
+del /a /f /q "%localappdata%\Microsoft\Windows\Explorer\thumbcache_*.db" >nul 2>&1
+start "" explorer.exe & call :LogAction "AutoRun Icon/Thumbnail cache rebuilt"
 call :ClearWinUpdate
 call :LogAction "AutoRun completed"
-set /p "rebootq=Reboot now? (Y/N): "
-if /i "%rebootq%"=="Y" shutdown /r /t 5
-pause
+echo.
+echo  [+] FULL MAINTENANCE COMPLETE.
+echo.
+set /p "rebootq=  A reboot is recommended. Would you like to reboot now? (Y/N): "
+if /i "%rebootq%"=="Y" shutdown /r /t 10 /c "Rebooting after Pro Toolkit maintenance."
+call :PauseToContinue
 goto :EOF
 
 :: ===== EXPORT REPORT =====
 :ExportReport
-cls & call :DrawBox "EXPORT REPORT"
-set "EXPORT_LOG=%BASE_LOG_DIR%\log_%TIME_TAG%.txt"
-if exist "%ACTIONS_LOGFILE%" (
-  ren "%ACTIONS_LOGFILE%" "log_%TIME_TAG%.txt"
-  echo [+] Report saved: %EXPORT_LOG%
-) else echo [-] No Actions.log found.
-> "%ACTIONS_LOGFILE%" echo Actions log restarted: %date% %time%
-call :LogAction "Log exported: %EXPORT_LOG%"
-start "" "%BASE_LOG_DIR%"
+cls & color %COLOR_FINISH% & call :DrawBox "EXPORT REPORT" & echo.
+
+:: Ensure the temporary log file exists before proceeding
+if not exist "%TMP_LOGFILE%" (
+    echo  [-] No actions have been performed in this session. Nothing to export.
+    pause
+    goto :EOF
+)
+
+set "NOW="
+:: Use powershell for a more reliable timestamp, especially for filenames
+for /f "usebackq" %%i in (`powershell -Command "Get-Date -Format 'yyyyMMddHHmm'"`) do set "NOW=%%i"
+
+if not defined NOW (
+    echo  [ERROR] Could not get system timestamp to create the log file. Export cancelled.
+    call :LogError "Failed to get system timestamp for log export."
+    pause
+    goto :EOF
+)
+
+set "EXPORT_FILENAME=Log_%NOW%.txt"
+set "EXPORT_PATH=%BASE_DIR%\%EXPORT_FILENAME%"
+
+:: Create a unique log file
+set "counter=0"
+:check_filename
+if exist "%EXPORT_PATH%" (
+    set /a counter+=1
+    set "EXPORT_FILENAME=Log_%NOW%_%counter%.txt"
+    set "EXPORT_PATH=%BASE_DIR%\%EXPORT_FILENAME%"
+    goto check_filename
+)
+
+:: Copy the temporary log to the permanent, uniquely named file
+copy "%TMP_LOGFILE%" "%EXPORT_PATH%" >nul
+
+if exist "%EXPORT_PATH%" (
+    echo  [+] Report saved successfully to:
+    echo      %EXPORT_PATH%
+    start "" "%BASE_DIR%"
+) else (
+    echo  [ERROR] Failed to write the report file. Please check permissions.
+    call :LogError "Failed to write export file to %EXPORT_PATH%"
+)
+call :LogAction "Log exported to %EXPORT_FILENAME%"
 pause
 goto :EOF
 
-:: ===== CLEAN DIR HELPER =====
+:: ==========================================
+:: ===== HELPER FUNCTIONS (Do not edit) =====
+:: ==========================================
+
+:CreateNewTempLog
+>> "%TMP_LOGFILE%" echo.
+>> "%TMP_LOGFILE%" echo --- Actions log for session started: %date% %time% ---
+goto :EOF
+
 :CleanDir
 setlocal
-set "DIR=%~1"
+set "DIR_PATH=%~1"
 set "DESC=%~2"
-if exist "%DIR%" (
-  echo [+] Cleaning %DESC%...
-  attrib -s -h "%DIR%\*" /S >nul 2>&1
-  for /d %%D in ("%DIR%\*") do rd /s /q "%%D" >nul 2>&1
-  del /f /q "%DIR%\*.*" >nul 2>&1
-  endlocal & call :LogAction "%DESC% cleaned (%DIR%)"
-) else endlocal
-exit /b
-
-:: ===== LOG ACTION =====
-:LogAction
->> "%ACTIONS_LOGFILE%" echo [%date% %time%] %~1
-exit /b
-
-:: ===== DRAW BOX =====
-:DrawBox
-setlocal enabledelayedexpansion
-set "text= %~1 "
-set /a len=0
-for /l %%i in (0,1,255) do (
-  set "c=!text:~%%i,1!"
-  if "!c!"=="" goto :draw
-  set /a len+=1
+if exist "%DIR_PATH%" (
+    echo  [*] Cleaning %DESC%...
+    pushd "%DIR_PATH%" >nul 2>&1 && (
+        :: Delete files first
+        del /f /s /q * >nul 2>&1
+        :: Then remove subdirectories
+        for /d %%D in (*) do rd /s /q "%%D" >nul 2>&1
+        popd
+        echo      [OK] Cleaned.
+        call :LogAction "%DESC% cleaned (%DIR_PATH%)"
+    ) || (
+        echo      [ERROR] Could not access or clean directory. It may be in use.
+        call :LogAction "Failed to access %DESC% dir (%DIR_PATH%)"
+        call :LogError "Could not access or clean directory: %DESC% (%DIR_PATH%)"
+    )
+) else (
+    echo  [-] %DESC% not found. Skipping.
 )
-:draw
-set "b=" & for /l %%i in (1,1,%len%) do set "b=!b!=="
-echo. & echo +!b!+ & echo ^|!text!^| & echo +!b!+
-endlocal & exit /b
+endlocal
+goto :EOF
 
-:: ===== FINISH =====
-:finish
-color 07
+:LogAction
+>> "%TMP_LOGFILE%" echo [%time%] %~1
+goto :EOF
+
+:LogError
+>> "%ERROR_LOGFILE%" echo [%date% %time%] %~1
+goto :EOF
+
+:DrawBox
+setlocal
+set "text=%~1"
+set "len=0"
+for /l %%A in (0,1,255) do (
+    set "char=!text:~%%A,1!"
+    if "!char!"=="" goto :calculate_len
+    set /a len+=1
+)
+:calculate_len
+set "padding="
+for /l %%A in (1,1,%len%) do set "padding=!padding!="
 echo.
-echo Operation finished. Use Export Report to save log.
-pause
-goto main_menu
+echo  +-%padding%-+
+echo  ^| %text% ^|
+echo  +-%padding%-+
+endlocal
+goto :EOF
+
+:PauseToContinue
+echo.
+color %COLOR_FINISH%
+echo  =============================================================
+echo   DONE! Operation finished.
+echo   Press any key to return to the Main Menu...
+echo  =============================================================
+pause >nul
+goto :EOF
