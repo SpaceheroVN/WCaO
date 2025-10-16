@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-title Windows Cleanup & Optimizer v4.1.1 - Pro Toolkit (Auto & Expert)
+title Windows Cleanup ^& Optimizer v4.1.1 - Pro Toolkit (Auto ^& Expert)
 
 :: ===== CONFIG / LOG SETUP =====
 set "VERSION=4.1.1"
@@ -24,7 +24,7 @@ set "OS_DRIVE=" & set "EXPERT_MODE=0"
 
 :: ===== ADMIN CHECK =====
 >nul 2>&1 net session || (
-  cls & color 0C
+  cls & color 04
   echo =========================================
   echo  ERROR: Run this script AS ADMINISTRATOR
   echo =========================================
@@ -42,7 +42,7 @@ if "%OS_DRIVE:~-1%"==":" (
 
 :: ===== MAIN MENU =====
 :main_menu
-cls & color 0A
+cls & color 0E
 call :DrawBox "%TOOLNAME% - v%VERSION%"
 echo.
 echo OS Drive detected: %OS_DRIVE%
@@ -69,7 +69,7 @@ goto main_menu
 
 :: ===== QUICK CLEAN =====
 :QuickClean
-cls & call :DrawBox "QUICK CLEANUP"
+cls & color 06 & call :DrawBox "QUICK CLEANUP"
 echo.
 call :CleanDir "%temp%" "User Temp"
 call :CleanDir "%SystemRoot%\Temp" "System Temp"
@@ -129,7 +129,7 @@ echo.
 echo [1] Clear Windows Update Cache
 echo [2] Remove Windows.old (Expert)
 echo [3] Pagefile / Hibernation (Expert)
-echo [4] Network Reset & Flush DNS
+echo [4] Network Reset ^& Flush DNS
 echo [5] Create System Restore Point
 echo [6] Back
 echo.
