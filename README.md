@@ -1,6 +1,6 @@
 # 🚀 Windows Cleanup & Optimizer v5.0.1 - Pro Toolkit (WCaO)
 
-> **Công cụ bảo trì toàn diện** dưới dạng Batch Script, cung cấp các tùy chọn **Tự động** và **Chuyên sâu (Expert)** để dọn dẹp, sửa lỗi và tối ưu hóa hiệu suất hệ thống Windows. Nó thuộc loại **mã nguồn mở** nên có thể **tùy chỉnh** theo *sở thích*❤️!
+> **Công cụ bảo trì toàn diện** dưới dạng Batch Script, cung cấp các tùy chọn **Tự động** và **Chuyên sâu (Expert)** để dọn dẹp, sửa lỗi và tối ưu hóa hiệu suất hệ thống Windows. Nó thuộc loại **mã nguồn mở** nên có thể **tùy chỉnh** theo *sở thích*❤️! Nếu bạn thấy tôi cập nhật **README.md** đầy đủ thì việc đó có nghĩa dự án ***đã tạm dừng vô thời hạn**...
 
 ---
 
