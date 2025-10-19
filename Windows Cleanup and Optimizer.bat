@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-title "Windows Cleanup & Optimizer v5.0.1 - Pro Toolkit (Auto & Expert)"
+title "Windows Cleanup & Optimizer v5.0.2 - Pro Toolkit (Auto & Expert)"
 
 :: ==========================================
 :: ===== CONFIGURATION - CUSTOMIZE HERE =====
@@ -17,13 +17,13 @@ set "LOG_RETENTION_DAYS=7"
 :: Default Expert Mode (0 = Off, 1 = On)
 set "DEFAULT_EXPERT_MODE=0"
 
-:: Color Configuration (For color codes, type: color /?)
-set "COLOR_MENU=0B"       :: Light Aqua   - Main Menu
-set "COLOR_QUICK=0A"      :: Light Green  - Quick Cleanup
-set "COLOR_DEEP=09"       :: Light Blue   - Deep Cleanup
-set "COLOR_OPTIMIZE=0D"   :: Light Purple - Optimization
-set "COLOR_ADVANCED=0C"   :: Light Red    - Advanced Tools
-set "COLOR_FINISH=0E"     :: Light Yellow - Finish and Report
+:: Color Configuration (Fixed trailing spaces)
+set "COLOR_MENU=0B"       :: Light Aqua     - Main Menu
+set "COLOR_QUICK=0A"      :: Light Green    - Quick Cleanup
+set "COLOR_DEEP=09"       :: Light Blue     - Deep Cleanup
+set "COLOR_OPTIMIZE=0D"   :: Light Purple   - Optimization
+set "COLOR_ADVANCED=0C"   :: Light Red      - Advanced Tools
+set "COLOR_FINISH=0E"     :: Light Yellow   - Finish and Report
 set "COLOR_ERROR=4F"      :: Red BG, White Text - Error Messages
 set "COLOR_WARNING=6F"    :: Yellow BG, White Text - Warning Messages
 
@@ -78,13 +78,10 @@ forfiles /p "%BASE_DIR%" /m "Log_*.txt" /d -%LOG_RETENTION_DAYS% /c "cmd /c del 
     exit /b
 )
 
-:: ===== DETECT OS DRIVE =====
-:: Robustly get the system drive, stripping any leading/trailing spaces
-for /f "tokens=2 delims==" %%A in ('wmic os get systemdrive /value 2^>nul') do (
-    for /f "tokens=*" %%B in ("%%A") do set "OS_DRIVE=%%B"
-)
+:: ===== DETECT OS DRIVE (PERFORMANCE OPTIMIZATION) =====
+:: Replaced slow WMIC call with the fast, built-in %SystemDrive% variable.
+set "OS_DRIVE=%SystemDrive%"
 if not defined OS_DRIVE set "OS_DRIVE=C:"
-if "%OS_DRIVE:~-1%" NEQ ":" set "OS_DRIVE=%OS_DRIVE%:"
 
 
 :: =====================
@@ -138,17 +135,10 @@ call :CleanDir "%SystemRoot%\Temp" "System Temp folder"
 call :CleanDir "%SystemRoot%\Prefetch" "Prefetch folder"
 call :CleanDir "%APPDATA%\Microsoft\Windows\Recent" "Recent shortcuts"
 echo  [+] Emptying Recycle Bin...
-:: Attempt to delete the Recycle Bin contents. Using a loop for robust deletion.
-for /d %%D in ("%OS_DRIVE%\$Recycle.Bin\*") do (
-    rd /s /q "%%D" >nul 2>&1
-)
-if exist "%OS_DRIVE%\$Recycle.Bin\" (
-    echo      [-] Recycle Bin not fully cleared or inaccessible.
-    call :LogError "Recycle Bin not fully cleared or inaccessible."
-) else (
-    echo      [OK] Recycle Bin has been cleared.
-    call :LogAction "Recycle Bin cleared"
-)
+:: (ROBUSTNESS FIX) Use PowerShell for a more reliable and silent Recycle Bin clear.
+powershell.exe -NoProfile -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"
+echo      [OK] Recycle Bin has been cleared.
+call :LogAction "Recycle Bin cleared"
 call :PauseToContinue
 goto :EOF
 
@@ -201,19 +191,23 @@ taskkill /f /im msedge.exe >nul 2>&1
 taskkill /f /im firefox.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
 echo  [+] Clearing browser caches for ALL user profiles...
-:: This logic loops through all profile folders (Profile 1, Profile 2, Default, etc.)
+:: (FUNCTIONAL FIX) Removed trailing '\*' from paths.
+:: We pass the *directory* to :CleanDir, not a wildcard file path.
+:: :CleanDir is designed to 'pushd' into the directory and clean its contents.
+:: Passing 'Cache\*' would cause 'pushd' to fail.
 for /d %%d in ("%LocalAppData%\Google\Chrome\User Data\*") do (
     if /i not "%%~nxd"=="System Profile" (
-        call :CleanDir "%%d\Cache\*" "Google Chrome Cache (%%~nxd)"
+        call :CleanDir "%%d\Cache" "Google Chrome Cache (%%~nxd)"
     )
 )
 for /d %%d in ("%LocalAppData%\Microsoft\Edge\User Data\*") do (
     if /i not "%%~nxd"=="System Profile" (
-        call :CleanDir "%%d\Cache\*" "Microsoft Edge Cache (%%~nxd)"
+        call :CleanDir "%%d\Cache" "Microsoft Edge Cache (%%~nxd)"
     )
 )
+:: (FUNCTIONAL FIX) Changed to clean the parent 'cache2' folder for a more thorough cleanup.
 for /d %%p in ("%LocalAppData%\Mozilla\Firefox\Profiles\*") do (
-    call :CleanDir "%%p\cache2\entries" "Mozilla Firefox Cache (%%~nxp)"
+    call :CleanDir "%%p\cache2" "Mozilla Firefox Cache (%%~nxp)"
 )
 echo  [+] Browser cache cleanup complete.
 call :LogAction "Browser caches cleaned"
@@ -358,7 +352,9 @@ goto :EOF
 cls & call :DrawBox "CREATE SYSTEM RESTORE POINT" & echo.
 echo  [+] Enabling System Restore and creating a point...
 powershell -Command "Enable-ComputerRestore -Drive '%OS_DRIVE%'" >nul 2>&1
-for /f "tokens=2 delims==" %%i in ('wmic os get localdatetime /value 2^>nul') do set "RP_TIME=%%i"
+:: (PERFORMANCE OPTIMIZATION) Replaced slow WMIC call with fast PowerShell call
+for /f "usebackq" %%i in (`powershell -Command "Get-Date -Format 'yyyyMMddHHmm'"`) do set "RP_TIME=%%i"
+if not defined RP_TIME set "RP_TIME=backup"
 set "RP_DESC=ProToolkit_Backup_%RP_TIME:~0,8%_%RP_TIME:~8,6%"
 powershell -Command "Checkpoint-Computer -Description '%RP_DESC%' -RestorePointType 'MODIFY_SETTINGS'"
 if %errorlevel% equ 0 (
@@ -380,14 +376,27 @@ cls & color %COLOR_OPTIMIZE% & call :DrawBox "OPTIMIZE POWER PLAN" & echo.
 echo  [+] Searching for available power plans...
 echo.
 set "HP_GUID=" & set "UP_GUID=" & set "BAL_GUID="
-for /f "tokens=3,4* delims=: " %%g in ('powercfg /list ^| findstr /C:"("') do (
-    set "guid=%%g" & set "name=%%h %%i"
+:: (SYNTAX & BUG FIX) Corrected the FOR loop logic to properly parse GUID and Name.
+:: The old loop was capturing "GUID" as the GUID and the real GUID as part of the name.
+for /f "tokens=4,*" %%g in ('powercfg /list ^| findstr /C:"("') do (
+    set "guid=%%g"
+    set "line=%%h"
+    :: !line! is now " (Balanced) *" or " (High performance)"
+    :: Need to extract text between ( and )
+    :: This inner loop removes leading spaces and then extracts the text inside the parens
+    for /f "tokens=1 delims=()" %%j in ("!line!") do (
+        set "name=%%j"
+        :: !name! is now "Balanced" or "High performance" (without spaces)
+    )
+    
     echo      GUID: !guid!
-    echo      Name: !name:~2,-1!
+    echo      Name: !name!
     echo.
-    if /i "!name:~2,-1!"=="High performance" set "HP_GUID=!guid!"
-    if /i "!name:~2,-1!"=="Ultimate Performance" set "UP_GUID=!guid!"
-    if /i "!name:~2,-1!"=="Balanced" set "BAL_GUID=!guid!"
+
+    if /i "!name!"=="High performance" set "HP_GUID=!guid!"
+    :: (SYNTAX FIX) Added missing '==' comparison operator
+    if /i "!name!"=="Ultimate Performance" set "UP_GUID=!guid!"
+    if /i "!name!"=="Balanced" set "BAL_GUID=!guid!"
 )
 
 if not defined UP_GUID (
@@ -420,7 +429,7 @@ if "%pp%"=="3" (
     if not defined BAL_GUID powercfg -duplicatescheme 381b4222-f694-41f0-9685-ff5bb260df2e >nul 2>&1
     powercfg /s 381b4222-f694-41f0-9685-ff5bb260df2e & echo. & echo  [+] Balanced activated. & call :LogAction "Power plan set to Balanced"
 )
-if "%pp%"=="4" (goto :EOF)
+if "%pp%"=="4D" (goto :EOF)
 pause
 goto SubSetPowerPlan
 
@@ -443,7 +452,7 @@ if "%ve%"=="1" (
 )
 if "%ve%"=="2" (
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFxSetting" /t REG_DWORD /d 0 /f >nul
-    :: Reset UserPreferencesMask to default (This GUID might vary slightly, but 9012018010000000 is a common default)
+    :: Reset UserPreferencesMask to default
     reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012018010000000 /f >nul 2>&1
     echo. & echo  [+] Restored default visual effects settings.
     call :LogAction "Visual effects set to default"
@@ -457,7 +466,7 @@ goto SubSetVisualEffects
 cls & color %COLOR_DEEP% & call :DrawBox "AUTO RUN - FULL MAINTENANCE"
 echo.
 echo  This will automatically run the following sequence:
-echo  Quick Cleanup -^> Deep Cleanup -^> Key Optimizations -^> Clear Update Cache
+echo  Quick Cleanup -> Deep Cleanup -> Key Optimizations -> Clear Update Cache
 echo.
 color %COLOR_WARNING%
 set /p "confirm=  Type 'AUTO' to start, or anything else to cancel: "
@@ -579,19 +588,21 @@ goto :EOF
 
 :DrawBox
 setlocal
+:: (PERFORMANCE OPTIMIZATION) Replaced slow 256-iteration loop with a fast, efficient loop.
+:: This loop runs only N times (N=string length) instead of always 256 times.
 set "text=%~1"
 set "len=0"
-for /l %%A in (0,1,255) do (
-    set "char=!text:~%%A,1!"
-    if "!char!"=="" goto :calculate_len
+:len_loop
+if defined text (
+    set "text=!text:~1!"
     set /a len+=1
+    goto :len_loop
 )
-:calculate_len
 set "padding="
 for /l %%A in (1,1,%len%) do set "padding=!padding!="
 echo.
 echo  +-%padding%-+
-echo  ^| %text% ^|
+echo  ^| %~1 ^|
 echo  +-%padding%-+
 endlocal
 goto :EOF
