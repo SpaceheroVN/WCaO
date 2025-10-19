@@ -1,10 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
-title "Windows Cleanup & Optimizer v5.0.2 - Pro Toolkit (Auto & Expert)"
+title "Windows Cleanup & Optimizer v5.1.0 - Pro Toolkit (Auto & Expert)"
 
-:: ==========================================
-:: ===== CONFIGURATION - CUSTOMIZE HERE =====
-:: ==========================================
+REM  /========================================================================\
+REM  |                   CONFIGURATION - CUSTOMIZE HERE                   |
+REM  \========================================================================/
 set "VERSION=5.0.1"
 set "TOOLNAME=Windows Cleanup and Optimizer"
 
@@ -27,9 +27,9 @@ set "COLOR_FINISH=0E"     :: Light Yellow   - Finish and Report
 set "COLOR_ERROR=4F"      :: Red BG, White Text - Error Messages
 set "COLOR_WARNING=6F"    :: Yellow BG, White Text - Warning Messages
 
-:: ===============================================================
-:: ===== SCRIPT INITIALIZATION (Do not edit below this line) =====
-:: ===============================================================
+REM  /========================================================================\
+REM  |        SCRIPT INITIALIZATION (Do not edit below this line)         |
+REM  \========================================================================/
 
 set "EXPERT_MODE=%DEFAULT_EXPERT_MODE%"
 set "TMP_LOGFILE=%BASE_DIR%\Actions.tmp"
@@ -84,9 +84,9 @@ set "OS_DRIVE=%SystemDrive%"
 if not defined OS_DRIVE set "OS_DRIVE=C:"
 
 
-:: =====================
-:: ===== MAIN MENU =====
-:: =====================
+REM  /========================================================================\
+REM  |                              MAIN MENU                              |
+REM  \========================================================================/
 :main_menu
 cls & color %COLOR_MENU%
 call :DrawBox "%TOOLNAME% - v%VERSION%"
@@ -122,9 +122,9 @@ if "%choice%"=="8" (
 :: Loop back to main menu if invalid input
 goto main_menu
 
-:: ============================================
-:: ===== CLEANUP & OPTIMIZATION FUNCTIONS =====
-:: ============================================
+REM  /========================================================================\
+REM  |                  CLEANUP & OPTIMIZATION FUNCTIONS                  |
+REM  \========================================================================/
 
 :: ===== QUICK CLEANUP =====
 :QuickClean
@@ -213,9 +213,9 @@ echo  [+] Browser cache cleanup complete.
 call :LogAction "Browser caches cleaned"
 goto :EOF
 
-:: ===================================
-:: ===== MENUS and SUB-FUNCTIONS =====
-:: ===================================
+REM  /========================================================================\
+REM  |                       MENUS and SUB-FUNCTIONS                       |
+REM  \========================================================================/
 
 :: ===== SYSTEM OPTIMIZATION MENU =====
 :SystemOptimizeMenu
@@ -235,14 +235,14 @@ if "%opt%"=="1" (cls & call :DrawBox "CHECK DISK" & echo. & chkdsk %OS_DRIVE% /s
 if "%opt%"=="2" (cls & call :DrawBox "DEFRAG / TRIM" & echo. & defrag %OS_DRIVE% /O /L & call :LogAction "defrag executed" & pause)
 if "%opt%"=="3" (
     cls & call :DrawBox "REBUILD CACHES" & echo.
-    echo  [+] Rebuilding icon & thumbnail caches...
+    echo  [+] Rebuilding icon ^& thumbnail caches...
     taskkill /f /im explorer.exe >nul 2>&1 & timeout /t 1 /nobreak >nul
     del /a /f /q "%localappdata%\IconCache.db" >nul 2>&1
     del /a /f /q "%localappdata%\Microsoft\Windows\Explorer\thumbcache_*.db" >nul 2>&1
     start "" explorer.exe & call :LogAction "Icon/Thumbnail cache rebuilt"
     echo  [+] Restarting Windows Search Service...
     sc query "WSearch" >nul 2>&1 && (net stop "WSearch" >nul 2>&1 & net start "WSearch" >nul 2>&1 & call :LogAction "WSearch restarted" & echo      [OK] WSearch service has been restarted.) || echo      [-] WSearch service not found or couldn't be restarted.
-    echo. & echo  [+] Done. & pause
+    echo  [+] Done. & pause
 )
 if "%opt%"=="4" (call :SetPowerPlan)
 if "%opt%"=="5" (call :SetVisualEffects)
@@ -266,7 +266,7 @@ set /p "adv=  Please choose an option (1-6): "
 if "%adv%"=="1" (call :ClearWinUpdate & pause)
 if "%adv%"=="2" (if "!EXPERT_MODE!"=="1" (call :RemoveWindowsOld & pause) else (echo. & color %COLOR_WARNING% & echo  [WARNING] This function requires Expert Mode. & color %COLOR_ADVANCED% & pause))
 if "%adv%"=="3" (if "!EXPERT_MODE!"=="1" (call :PagefileMenu) else (echo. & color %COLOR_WARNING% & echo  [WARNING] This function requires Expert Mode. & color %COLOR_ADVANCED% & pause))
-if "%adv%"=="4" (call :NetReset & pause)
+if "%adv%"=="4D" (call :NetReset & pause)
 if "%adv%"=="5" (call :CreateRestorePoint & pause)
 if "%adv%"=="6" (goto :EOF)
 goto SubAdvancedMenu
@@ -372,94 +372,136 @@ goto :EOF
 
 :SetPowerPlan
 :SubSetPowerPlan
+setlocal EnableDelayedExpansion
 cls & color %COLOR_OPTIMIZE% & call :DrawBox "OPTIMIZE POWER PLAN" & echo.
 echo  [+] Searching for available power plans...
+powercfg /list
+echo -----------------------------------
 echo.
-set "HP_GUID=" & set "UP_GUID=" & set "BAL_GUID="
-:: (SYNTAX & BUG FIX) Corrected the FOR loop logic to properly parse GUID and Name.
-:: The old loop was capturing "GUID" as the GUID and the real GUID as part of the name.
-for /f "tokens=4,*" %%g in ('powercfg /list ^| findstr /C:"("') do (
-    set "guid=%%g"
-    set "line=%%h"
-    :: !line! is now " (Balanced) *" or " (High performance)"
-    :: Need to extract text between ( and )
-    :: This inner loop removes leading spaces and then extracts the text inside the parens
-    for /f "tokens=1 delims=()" %%j in ("!line!") do (
-        set "name=%%j"
-        :: !name! is now "Balanced" or "High performance" (without spaces)
-    )
-    
-    echo      GUID: !guid!
-    echo      Name: !name!
-    echo.
-
-    if /i "!name!"=="High performance" set "HP_GUID=!guid!"
-    :: (SYNTAX FIX) Added missing '==' comparison operator
-    if /i "!name!"=="Ultimate Performance" set "UP_GUID=!guid!"
-    if /i "!name!"=="Balanced" set "BAL_GUID=!guid!"
-)
-
-if not defined UP_GUID (
-    echo  [*] Ultimate Performance plan not found. Trying to import it...
-    :: GUID for Ultimate Performance
-    powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 >nul 2>&1
-    if !errorlevel! equ 0 (
-        echo      [OK] Successfully imported Ultimate Performance. Reopening menu to select.
-        call :LogAction "Imported Ultimate Performance power plan"
-        pause
-        goto SubSetPowerPlan :: Re-scan plans to show new option
-    ) else (
-        echo      [-] Failed to import Ultimate Performance. Your Windows version may not support it.
-    )
-    echo.
-)
-
-echo  --------------------------------------
-echo  [1] High Performance
-if defined UP_GUID echo  [2] Ultimate Performance
-echo  [3] Balanced (Default)
-echo  [4] Back
+echo  [1] Add Performance Plan
+echo  [2] Remove Performance Plan
+echo  [3] Set Performance Plan
+echo  [4] Restore Defaults Performance Plan
+echo  [5] Back
 echo.
 set "pp="
-set /p "pp=  Choose a plan to activate: "
-if "%pp%"=="1" if defined HP_GUID (powercfg /s %HP_GUID% & echo. & echo  [+] High Performance activated. & call :LogAction "Power plan set to High Performance")
-if "%pp%"=="2" if defined UP_GUID (powercfg /s %UP_GUID% & echo. & echo  [+] Ultimate Performance activated. & call :LogAction "Power plan set to Ultimate Performance")
-if "%pp%"=="3" (
-    :: Ensure Balanced plan is available, then activate it.
-    if not defined BAL_GUID powercfg -duplicatescheme 381b4222-f694-41f0-9685-ff5bb260df2e >nul 2>&1
-    powercfg /s 381b4222-f694-41f0-9685-ff5bb260df2e & echo. & echo  [+] Balanced activated. & call :LogAction "Power plan set to Balanced"
+set /p "pp=  Choose an option: "
+
+if "%pp%"=="1" (
+    echo.
+    echo  [1] Ultimate Performance
+    echo  [2] High Performance
+    echo  [3] Balanced
+    echo  [4] Power Saver
+    echo.
+    set "add="
+    set /p "add=Choose a plan to add: "
+
+    if "!add!"=="1" (
+        powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61
+        echo  [+] Ultimate Performance added.
+    ) else if "!add!"=="2" (
+        powercfg -duplicatescheme 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+        echo  [+] High Performance added.
+    ) else if "!add!"=="3" (
+        powercfg -duplicatescheme 381b4222-f694-41f0-9685-ff5bb260df2e
+        echo  [+] Balanced added.
+    ) else if "!add!"=="4" (
+        powercfg -duplicatescheme a1841308-3541-4fab-bc81-f71556f20b4a
+        echo  [+] Power Saver added.
+    ) else (
+        echo  [!] Invalid selection.
+    )
+    set "add="
 )
-if "%pp%"=="4D" (goto :EOF)
+
+if "%pp%"=="2" (
+    echo.
+    set "del_guid="
+    set /p "del_guid=  Enter the GUID of the plan to remove: "
+    powercfg /delete !del_guid!
+    if !errorlevel! equ 0 (
+        echo  [-] Power plan with GUID !del_guid! removed successfully.
+    ) else (
+        echo  [!] Failed to remove. Please check the GUID and try again.
+    )
+    set "del_guid="
+)
+
+if "%pp%"=="3" (
+    echo.
+    set "set_guid="
+    set /p "set_guid=  Enter the GUID of the plan to activate: "
+    powercfg /s !set_guid!
+    if !errorlevel! equ 0 (
+        echo  [+] Power plan !set_guid! activated.
+    ) else (
+        echo  [!] Failed to activate. Please check the GUID and try again.
+    )
+    set "set_guid="
+)
+
+if "%pp%"=="4" powercfg /restoredefaultschemes
+
+if "%pp%"=="5" goto :EOF
+
 pause
 goto SubSetPowerPlan
 
 :SetVisualEffects
 :SubSetVisualEffects
-cls & call :DrawBox "OPTIMIZE VISUAL EFFECTS" & echo.
-echo  [1] Adjust for best performance (disables most animations)
-echo  [2] Let Windows choose what's best (Default)
-echo  [3] Back
+cls
+call :DrawBox "OPTIMIZE VISUAL EFFECTS"
 echo.
+echo [1] Adjust for best performance (disables most animations)
+echo [2] Custom (Enable Peek + Smooth edges of screen fonts)
+echo [3] Let Windows choose what's best (Default)
+echo [4] Back
+echo.
+
 set "ve="
-set /p "ve=  Please choose an option (1-3): "
+set /p "ve=Please choose an option (1-4): "
+
 if "%ve%"=="1" (
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFxSetting" /t REG_DWORD /d 2 /f >nul
     reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012038010000000 /f >nul
-    echo. & echo  [+] Visual effects set for best performance.
-    echo      A log off or reboot is required to apply changes.
+    echo.
+    echo [+] Visual effects set for best performance.
+    echo A log off or reboot is required to apply changes.
+    echo.
     call :LogAction "Visual effects set for best performance"
     pause
+    goto :SubSetVisualEffects
 )
+
 if "%ve%"=="2" (
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFxSetting" /t REG_DWORD /d 3 /f >nul
+    reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012038010000000 /f >nul
+    echo.
+    echo [+] Visual effects set to custom: Peek and font smoothing enabled.
+    echo A log off or reboot is required to apply changes.
+    echo.
+    call :LogAction "Visual effects set to custom: Peek and font smoothing"
+    pause
+    goto :SubSetVisualEffects
+)
+
+if "%ve%"=="3" (
     reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects" /v "VisualFxSetting" /t REG_DWORD /d 0 /f >nul
-    :: Reset UserPreferencesMask to default
-    reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012018010000000 /f >nul 2>&1
-    echo. & echo  [+] Restored default visual effects settings.
+    reg add "HKCU\Control Panel\Desktop" /v "UserPreferencesMask" /t REG_BINARY /d 9012018010000000 /f >nul
+    echo.
+    echo [+] Restored default visual effects settings.
+    echo.
     call :LogAction "Visual effects set to default"
     pause
+    goto :SubSetVisualEffects
 )
-if "%ve%"=="3" (goto :EOF)
-goto SubSetVisualEffects
+
+if "%ve%"=="4" (
+    goto :EOF
+)
+
+goto :SubSetVisualEffects
 
 :: ===== AUTO RUN FULL MAINTENANCE =====
 :AutoRun
@@ -544,9 +586,9 @@ call :LogAction "Log exported to %EXPORT_FILENAME%"
 pause
 goto :EOF
 
-:: ==========================================
-:: ===== HELPER FUNCTIONS (Do not edit) =====
-:: ==========================================
+REM  /========================================================================\
+REM  |                    HELPER FUNCTIONS (Do not edit)                    |
+REM  \========================================================================/
 
 :CreateNewTempLog
 >> "%TMP_LOGFILE%" echo.
@@ -601,9 +643,9 @@ if defined text (
 set "padding="
 for /l %%A in (1,1,%len%) do set "padding=!padding!="
 echo.
-echo  +-%padding%-+
-echo  ^| %~1 ^|
-echo  +-%padding%-+
+echo   +-%padding%-+
+echo   ^| %~1 ^|
+echo   +-%padding%-+
 endlocal
 goto :EOF
 
