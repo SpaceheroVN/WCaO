@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
-title "Windows Cleanup & Optimizer v5.1.0 - Pro Toolkit (Auto & Expert)"
+title "Windows Cleanup & Optimizer v5.1.1 - Pro Toolkit (Auto & Expert)"
 
 REM  /========================================================================\
 REM  |                   CONFIGURATION - CUSTOMIZE HERE                       |
 REM  \========================================================================/
-set "VERSION=5.0.1"
+set "VERSION=5.1.1"
 set "TOOLNAME=Windows Cleanup and Optimizer"
 
 :: Log Configuration
@@ -658,3 +658,4 @@ echo   Press any key to return to the Main Menu...
 echo  =============================================================
 pause >nul
 goto :EOF
+
