@@ -3,7 +3,7 @@ setlocal enabledelayedexpansion
 title "Windows Cleanup & Optimizer v5.1.0 - Pro Toolkit (Auto & Expert)"
 
 REM  /========================================================================\
-REM  |                   CONFIGURATION - CUSTOMIZE HERE                   |
+REM  |                   CONFIGURATION - CUSTOMIZE HERE                       |
 REM  \========================================================================/
 set "VERSION=5.0.1"
 set "TOOLNAME=Windows Cleanup and Optimizer"
@@ -28,7 +28,7 @@ set "COLOR_ERROR=4F"      :: Red BG, White Text - Error Messages
 set "COLOR_WARNING=6F"    :: Yellow BG, White Text - Warning Messages
 
 REM  /========================================================================\
-REM  |        SCRIPT INITIALIZATION (Do not edit below this line)         |
+REM  |        SCRIPT INITIALIZATION (Do not edit below this line)             |
 REM  \========================================================================/
 
 set "EXPERT_MODE=%DEFAULT_EXPERT_MODE%"
@@ -85,7 +85,7 @@ if not defined OS_DRIVE set "OS_DRIVE=C:"
 
 
 REM  /========================================================================\
-REM  |                              MAIN MENU                              |
+REM  |                              MAIN MENU                                 |
 REM  \========================================================================/
 :main_menu
 cls & color %COLOR_MENU%
@@ -123,7 +123,7 @@ if "%choice%"=="8" (
 goto main_menu
 
 REM  /========================================================================\
-REM  |                  CLEANUP & OPTIMIZATION FUNCTIONS                  |
+REM  |                  CLEANUP & OPTIMIZATION FUNCTIONS                      |
 REM  \========================================================================/
 
 :: ===== QUICK CLEANUP =====
@@ -214,7 +214,7 @@ call :LogAction "Browser caches cleaned"
 goto :EOF
 
 REM  /========================================================================\
-REM  |                       MENUS and SUB-FUNCTIONS                       |
+REM  |                       MENUS and SUB-FUNCTIONS                          |
 REM  \========================================================================/
 
 :: ===== SYSTEM OPTIMIZATION MENU =====
@@ -587,7 +587,7 @@ pause
 goto :EOF
 
 REM  /========================================================================\
-REM  |                    HELPER FUNCTIONS (Do not edit)                    |
+REM  |                    HELPER FUNCTIONS (Do not edit)                      |
 REM  \========================================================================/
 
 :CreateNewTempLog
