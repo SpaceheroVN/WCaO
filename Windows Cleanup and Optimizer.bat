@@ -1,11 +1,11 @@
 @echo off
 setlocal enabledelayedexpansion
-title "Windows Cleanup & Optimizer v5.1.1 - Pro Toolkit (Auto & Expert)"
+title "Windows Cleanup & Optimizer v5.1.4 - Pro Toolkit"
 
 REM  /========================================================================\
 REM  |                   CONFIGURATION - CUSTOMIZE HERE                       |
 REM  \========================================================================/
-set "VERSION=5.1.1"
+set "VERSION=5.1.4"
 set "TOOLNAME=Windows Cleanup and Optimizer"
 
 :: Log Configuration
@@ -17,14 +17,14 @@ set "LOG_RETENTION_DAYS=7"
 :: Default Expert Mode (0 = Off, 1 = On)
 set "DEFAULT_EXPERT_MODE=0"
 
-:: Color Configuration (Fixed trailing spaces)
+:: Color Configuration
 set "COLOR_MENU=0B"       :: Light Aqua     - Main Menu
 set "COLOR_QUICK=0A"      :: Light Green    - Quick Cleanup
 set "COLOR_DEEP=09"       :: Light Blue     - Deep Cleanup
 set "COLOR_OPTIMIZE=0D"   :: Light Purple   - Optimization
 set "COLOR_ADVANCED=0C"   :: Light Red      - Advanced Tools
 set "COLOR_FINISH=0E"     :: Light Yellow   - Finish and Report
-set "COLOR_ERROR=4F"      :: Red BG, White Text - Error Messages
+set "COLOR_ERROR=04"      :: Red 			- Error Messages
 set "COLOR_WARNING=6F"    :: Yellow BG, White Text - Warning Messages
 
 REM  /========================================================================\
@@ -35,7 +35,6 @@ set "EXPERT_MODE=%DEFAULT_EXPERT_MODE%"
 set "TMP_LOGFILE=%BASE_DIR%\Actions.tmp"
 set "ERROR_LOGFILE=%BASE_DIR%\Errors.log"
 
-:: Create base directory if it doesn't exist
 if not exist "%BASE_DIR%" mkdir "%BASE_DIR%" >nul 2>&1
 
 :: --- ROBUSTNESS CHECK: Verify that the working directory was created ---
@@ -53,13 +52,10 @@ if not exist "%BASE_DIR%\" (
     exit /b
 )
 
-:: On start, clean up temp log from a previous improper exit
 if exist "%TMP_LOGFILE%" del "%TMP_LOGFILE%" >nul 2>&1
 
-:: Start a fresh temporary log for the current session
 call :CreateNewTempLog
 
-:: Clean up old permanent logs from the base directory
 forfiles /p "%BASE_DIR%" /m "Log_*.txt" /d -%LOG_RETENTION_DAYS% /c "cmd /c del @path" >nul 2>&1
 
 :: ===== ADMIN CHECK =====
@@ -73,13 +69,11 @@ forfiles /p "%BASE_DIR%" /m "Log_*.txt" /d -%LOG_RETENTION_DAYS% /c "cmd /c del 
     echo  1. Close this window.
     echo  2. Right-click the script file.
     echo  3. Select 'Run as administrator'.
-    echo.
+    echo  Press any key to exit...
     pause >nul
     exit /b
 )
 
-:: ===== DETECT OS DRIVE (PERFORMANCE OPTIMIZATION) =====
-:: Replaced slow WMIC call with the fast, built-in %SystemDrive% variable.
 set "OS_DRIVE=%SystemDrive%"
 if not defined OS_DRIVE set "OS_DRIVE=C:"
 
@@ -100,7 +94,6 @@ echo  [2] Deep Cleanup
 echo  [3] System Optimization
 echo  [4] Advanced Tools
 echo  [5] Auto Run Full Maintenance
-echo.
 echo  --------------------------------------
 echo  [6] Toggle Expert Mode (Current: !expert_status!)
 echo  [7] Export Report
@@ -115,11 +108,9 @@ if "%choice%"=="5" call :AutoRun & goto main_menu
 if "%choice%"=="6" (if "!EXPERT_MODE!"=="0" (set "EXPERT_MODE=1") else (set "EXPERT_MODE=0")) & goto main_menu
 if "%choice%"=="7" call :ExportReport & goto main_menu
 if "%choice%"=="8" (
-    :: Delete temp log on clean exit
     if exist "%TMP_LOGFILE%" del "%TMP_LOGFILE%" >nul 2>&1
     exit /b
 )
-:: Loop back to main menu if invalid input
 goto main_menu
 
 REM  /========================================================================\
@@ -135,7 +126,6 @@ call :CleanDir "%SystemRoot%\Temp" "System Temp folder"
 call :CleanDir "%SystemRoot%\Prefetch" "Prefetch folder"
 call :CleanDir "%APPDATA%\Microsoft\Windows\Recent" "Recent shortcuts"
 echo  [+] Emptying Recycle Bin...
-:: (ROBUSTNESS FIX) Use PowerShell for a more reliable and silent Recycle Bin clear.
 powershell.exe -NoProfile -Command "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"
 echo      [OK] Recycle Bin has been cleared.
 call :LogAction "Recycle Bin cleared"
@@ -147,7 +137,6 @@ goto :EOF
 cls & color %COLOR_DEEP% & call :DrawBox "DEEP CLEANUP"
 echo.
 echo  [+] Running DISM RestoreHealth... This may take a long time. Please wait.
-echo.
 Dism /Online /Cleanup-Image /RestoreHealth
 set "rc=!errorlevel!"
 if !rc! equ 0 (
@@ -160,7 +149,6 @@ if !rc! equ 0 (
 )
 echo.
 echo  [+] Running SFC /scannow... This may also take some time.
-echo.
 sfc /scannow
 set "rc=!errorlevel!"
 if !rc! equ 0 (
@@ -173,28 +161,88 @@ if !rc! equ 0 (
 )
 echo.
 echo  [+] Running Disk Cleanup on essential items...
-:: The /autoclean switch is more reliable than /sagerun as it cleans all default locations.
 cleanmgr /autoclean >nul 2>&1
+echo.
 call :LogAction "cleanmgr /autoclean executed"
 echo      [OK] Disk Cleanup has been executed.
-call :BrowserCleanup
+::call :BrowserCleanup -> There are some errors and I probably won't fix them...
 call :PauseToContinue
 goto :EOF
 
 :: ===== BROWSER CLEANUP =====
 :BrowserCleanup
-echo. & call :DrawBox "BROWSER CACHE CLEANUP"
+cls & call :DrawBox "BROWSER CACHE CLEANUP"
 echo.
-echo  [+] Closing browser processes to release file locks...
+echo  Select browser to clear cache:
+echo.
+echo  [1] Google Chrome
+echo  [2] Microsoft Edge
+echo  [3] Mozilla Firefox
+echo  [4] CocCoc
+echo  [5] All
+echo  [6] Complete
+echo.
+set /p choice=Enter your choice (1-6): 
+if "%choice%"=="1" goto chrome
+if "%choice%"=="2" goto edge
+if "%choice%"=="3" goto firefox
+if "%choice%"=="4" goto coccoc
+if "%choice%"=="5" goto all
+if "%choice%"=="6" goto end
+
+:chrome
+echo  [+] Closing Chrome processes to release file locks...
+taskkill /f /im chrome.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo  [+] Clearing Google Chrome cache...
+for /d %%d in ("%LocalAppData%\Google\Chrome\User Data\*") do (
+    if /i not "%%~nxd"=="System Profile" (
+        call :CleanDir "%%d\Cache" "Google Chrome Cache (%%~nxd)"
+    )
+)
+goto BrowserCleanup
+
+:edge
+echo  [+] Closing Chrome processes to release file locks...
+taskkill /f /im msedge.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo  [+] Clearing Microsoft Edge cache...
+for /d %%d in ("%LocalAppData%\Microsoft\Edge\User Data\*") do (
+    if /i not "%%~nxd"=="System Profile" (
+        call :CleanDir "%%d\Cache" "Microsoft Edge Cache (%%~nxd)"
+    )
+)
+goto BrowserCleanup
+
+:firefox
+echo  [+] Closing Chrome processes to release file locks...
+taskkill /f /im firefox.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo  [+] Clearing Mozilla Firefox cache...
+for /d %%p in ("%LocalAppData%\Mozilla\Firefox\Profiles\*") do (
+    call :CleanDir "%%p\cache2" "Mozilla Firefox Cache (%%~nxp)"
+)
+goto BrowserCleanup
+
+:coccoc
+echo  [+] Closing Chrome processes to release file locks...
+taskkill /f /im browser.exe >nul 2>&1
+timeout /t 2 /nobreak >nul
+echo  [+] Clearing Cốc Cốc cache...
+for /d %%d in ("%LocalAppData%\CocCoc\Browser\User Data\*") do (
+    if /i not "%%~nxd"=="System Profile" (
+        call :CleanDir "%%d\Cache" "Cốc Cốc Cache (%%~nxd)"
+    )
+)
+goto BrowserCleanup
+
+:all
 taskkill /f /im chrome.exe >nul 2>&1
 taskkill /f /im msedge.exe >nul 2>&1
 taskkill /f /im firefox.exe >nul 2>&1
+taskkill /f /im browser.exe >nul 2>&1
 timeout /t 2 /nobreak >nul
-echo  [+] Clearing browser caches for ALL user profiles...
-:: (FUNCTIONAL FIX) Removed trailing '\*' from paths.
-:: We pass the *directory* to :CleanDir, not a wildcard file path.
-:: :CleanDir is designed to 'pushd' into the directory and clean its contents.
-:: Passing 'Cache\*' would cause 'pushd' to fail.
+echo  [+] Clearing cache for ALL browsers...
 for /d %%d in ("%LocalAppData%\Google\Chrome\User Data\*") do (
     if /i not "%%~nxd"=="System Profile" (
         call :CleanDir "%%d\Cache" "Google Chrome Cache (%%~nxd)"
@@ -205,12 +253,21 @@ for /d %%d in ("%LocalAppData%\Microsoft\Edge\User Data\*") do (
         call :CleanDir "%%d\Cache" "Microsoft Edge Cache (%%~nxd)"
     )
 )
-:: (FUNCTIONAL FIX) Changed to clean the parent 'cache2' folder for a more thorough cleanup.
 for /d %%p in ("%LocalAppData%\Mozilla\Firefox\Profiles\*") do (
     call :CleanDir "%%p\cache2" "Mozilla Firefox Cache (%%~nxp)"
 )
+for /d %%d in ("%LocalAppData%\CocCoc\Browser\User Data\*") do (
+    if /i not "%%~nxd"=="System Profile" (
+        call :CleanDir "%%d\Cache" "CocCoc Cache (%%~nxd)"
+    )
+)
+goto BrowserCleanup
+
+:end
+echo.
 echo  [+] Browser cache cleanup complete.
 call :LogAction "Browser caches cleaned"
+call :PauseToContinue
 goto :EOF
 
 REM  /========================================================================\
@@ -266,7 +323,7 @@ set /p "adv=  Please choose an option (1-6): "
 if "%adv%"=="1" (call :ClearWinUpdate & pause)
 if "%adv%"=="2" (if "!EXPERT_MODE!"=="1" (call :RemoveWindowsOld & pause) else (echo. & color %COLOR_WARNING% & echo  [WARNING] This function requires Expert Mode. & color %COLOR_ADVANCED% & pause))
 if "%adv%"=="3" (if "!EXPERT_MODE!"=="1" (call :PagefileMenu) else (echo. & color %COLOR_WARNING% & echo  [WARNING] This function requires Expert Mode. & color %COLOR_ADVANCED% & pause))
-if "%adv%"=="4D" (call :NetReset & pause)
+if "%adv%"=="4" (call :NetReset & pause)
 if "%adv%"=="5" (call :CreateRestorePoint & pause)
 if "%adv%"=="6" (goto :EOF)
 goto SubAdvancedMenu
@@ -276,12 +333,20 @@ goto SubAdvancedMenu
 :ClearWinUpdate
 cls & call :DrawBox "CLEAR WINDOWS UPDATE CACHE" & echo.
 echo  [+] Stopping required services...
-net stop wuauserv >nul 2>&1
-net stop bits >nul 2>&1
-net stop cryptsvc >nul 2>&1
+sc stop wuauserv >nul 2>&1
+sc stop bits >nul 2>&1
+sc stop cryptsvc >nul 2>&1
 echo  [+] Deleting cache folders...
-if exist "%windir%\SoftwareDistribution" (rd /s /q "%windir%\SoftwareDistribution" & echo      [OK] Removed SoftwareDistribution folder. & call :LogAction "SoftwareDistribution removed")
-if exist "%windir%\System32\catroot2" (rd /s /q "%windir%\System32\catroot2" & echo      [OK] Removed catroot2 folder. & call :LogAction "catroot2 removed")
+if exist "%windir%\SoftwareDistribution" (
+    rd /s /q "%windir%\SoftwareDistribution" >nul 2>&1
+    echo      [OK] Removed SoftwareDistribution folder.
+    call :LogAction "SoftwareDistribution removed"
+)
+if exist "%windir%\System32\catroot2" (
+    rd /s /q "%windir%\System32\catroot2" >nul 2>&1
+    echo      [OK] Removed catroot2 folder.
+    call :LogAction "catroot2 removed"
+)
 echo  [+] Restarting services...
 net start cryptsvc >nul 2>&1
 net start bits >nul 2>&1
@@ -320,7 +385,7 @@ goto :EOF
 
 :PagefileMenu
 :SubPagefileMenu
-cls & call :DrawBox "PAGEFILE & HIBERNATION MANAGEMENT" & echo.
+cls & call :DrawBox "PAGEFILE AND HIBERNATION MANAGEMENT" & echo.
 echo  [1] Disable Automatic Pagefile Management
 echo  [2] Disable Hibernation (removes hiberfil.sys)
 echo  [3] Back
@@ -329,7 +394,6 @@ set "pf="
 set /p "pf=  Please choose (1-3): "
 if "%pf%"=="1" (
     wmic computersystem where name="%computername%" set AutomaticManagedPagefile=False >nul
-    :: Ensure PagingFiles registry entry is cleared for proper disablement
     reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v PagingFiles /t REG_MULTI_SZ /d "" /f >nul
     echo. & echo  [+] Automatic pagefile management disabled (reboot required). & call :LogAction "Pagefile management disabled" & pause
 )
@@ -352,7 +416,6 @@ goto :EOF
 cls & call :DrawBox "CREATE SYSTEM RESTORE POINT" & echo.
 echo  [+] Enabling System Restore and creating a point...
 powershell -Command "Enable-ComputerRestore -Drive '%OS_DRIVE%'" >nul 2>&1
-:: (PERFORMANCE OPTIMIZATION) Replaced slow WMIC call with fast PowerShell call
 for /f "usebackq" %%i in (`powershell -Command "Get-Date -Format 'yyyyMMddHHmm'"`) do set "RP_TIME=%%i"
 if not defined RP_TIME set "RP_TIME=backup"
 set "RP_DESC=ProToolkit_Backup_%RP_TIME:~0,8%_%RP_TIME:~8,6%"
@@ -540,7 +603,6 @@ goto :EOF
 :ExportReport
 cls & color %COLOR_FINISH% & call :DrawBox "EXPORT REPORT" & echo.
 
-:: Ensure the temporary log file exists before proceeding
 if not exist "%TMP_LOGFILE%" (
     echo  [-] No actions have been performed in this session. Nothing to export.
     pause
@@ -548,7 +610,6 @@ if not exist "%TMP_LOGFILE%" (
 )
 
 set "NOW="
-:: Use powershell for a more reliable timestamp, especially for filenames
 for /f "usebackq" %%i in (`powershell -Command "Get-Date -Format 'yyyyMMddHHmm'"`) do set "NOW=%%i"
 
 if not defined NOW (
@@ -561,7 +622,6 @@ if not defined NOW (
 set "EXPORT_FILENAME=Log_%NOW%.txt"
 set "EXPORT_PATH=%BASE_DIR%\%EXPORT_FILENAME%"
 
-:: Create a unique log file
 set "counter=0"
 :check_filename
 if exist "%EXPORT_PATH%" (
@@ -571,7 +631,6 @@ if exist "%EXPORT_PATH%" (
     goto check_filename
 )
 
-:: Copy the temporary log to the permanent, uniquely named file
 copy "%TMP_LOGFILE%" "%EXPORT_PATH%" >nul
 
 if exist "%EXPORT_PATH%" (
@@ -602,9 +661,7 @@ set "DESC=%~2"
 if exist "%DIR_PATH%" (
     echo  [*] Cleaning %DESC%...
     pushd "%DIR_PATH%" >nul 2>&1 && (
-        :: Delete files first
         del /f /s /q * >nul 2>&1
-        :: Then remove subdirectories
         for /d %%D in (*) do rd /s /q "%%D" >nul 2>&1
         popd
         echo      [OK] Cleaned.
@@ -630,8 +687,6 @@ goto :EOF
 
 :DrawBox
 setlocal
-:: (PERFORMANCE OPTIMIZATION) Replaced slow 256-iteration loop with a fast, efficient loop.
-:: This loop runs only N times (N=string length) instead of always 256 times.
 set "text=%~1"
 set "len=0"
 :len_loop
@@ -658,4 +713,3 @@ echo   Press any key to return to the Main Menu...
 echo  =============================================================
 pause >nul
 goto :EOF
-
