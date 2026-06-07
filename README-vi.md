@@ -1,8 +1,8 @@
 *Read this in other languages: [English](README.md) | [Tiếng Việt](README-vi.md)*
 
-# 🚀 Windows Cleanup & Optimizer v6.1.8 - Ultimate Toolkit (WCaO) <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.1.8/WCaO.bat"><img src="https://img.shields.io/badge/Download-brightgreen?style=flat&logo=download&logoColor=white" alt="Latest Release" width="85"></a>
+# 🚀 Windows Cleanup & Optimizer v6.1.9 - Ultimate Toolkit (WCaO) <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.1.9/WCaO.bat"><img src="https://img.shields.io/badge/Download-brightgreen?style=flat&logo=download&logoColor=white" alt="Latest Release" width="85"></a>
 
-![Version](https://img.shields.io/badge/version-v6.1.8-blue?style=plastic) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=plastic&logo=windows&logoColor=white) ![Language](https://img.shields.io/badge/language-Batch-4D4D4D?style=plastic&logo=windows-terminal&logoColor=white) ![License](https://img.shields.io/badge/license-Open%20Source-brightgreen?style=plastic&logo=opensource&logoColor=white) ![Admin](https://img.shields.io/badge/requires_Admin-Optional-yellow?style=plastic&logo=powershell&logoColor=white) ![Status](https://img.shields.io/badge/status-Active-success?style=plastic&logo=rocket&logoColor=white)
+![Version](https://img.shields.io/badge/version-v6.1.9-blue?style=plastic) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=plastic&logo=windows&logoColor=white) ![Language](https://img.shields.io/badge/language-Batch-4D4D4D?style=plastic&logo=windows-terminal&logoColor=white) ![License](https://img.shields.io/badge/license-Open%20Source-brightgreen?style=plastic&logo=opensource&logoColor=white) ![Admin](https://img.shields.io/badge/requires_Admin-Optional-yellow?style=plastic&logo=powershell&logoColor=white) ![Status](https://img.shields.io/badge/status-Active-success?style=plastic&logo=rocket&logoColor=white)
 
 Công cụ bảo trì hệ thống mã nguồn mở viết bằng Batch Script. Phiên bản v6.1.7 cung cấp tổng cộng **9 nhóm danh mục** với nhiều chức năng cụ thể giúp dọn dẹp, sửa lỗi và tối ưu hóa Windows. Nếu bạn thấy tôi cập nhật **README.md** đúng phiên bản **hiện tại** thì việc đó đồng nghĩa dự án ***đã tạm dừng vô thời hạn**...
 
@@ -40,6 +40,7 @@ Tool được chia thành 9 danh mục chính trên Menu, bao gồm các chức 
 | **Optimize Power Plan** | Thêm, xóa hoặc thiết lập các chế độ nguồn điện (Ultimate, High...). | Có |
 | **Optimize Visual Effects** | Bật/tắt hiệu ứng đồ họa để tăng hiệu suất. | Không |
 | **Win 11 Context Menu** | Chuyển đổi giữa Menu chuột phải kiểu Win 10 và Win 11 (Tự động khởi động lại Explorer để áp dụng). | Không |
+| **Edge Rounded Corners Fix** | Vá các lối tắt để tắt viền bo tròn ép buộc trên Edge v149+. | Không |
 
 ### 4. Advanced Tools (Công cụ nâng cao)
 | Chức Năng | Tính năng cụ thể | Yêu cầu Expert Mode |

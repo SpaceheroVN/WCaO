@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-title Windows Cleanup ^& Optimizer v6.1.8 - Ultimate Toolkit
+title Windows Cleanup ^& Optimizer v6.1.9 - Ultimate Toolkit
 
 reg add "HKCU\Console" /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
 cd /d "%~dp0"
@@ -8,7 +8,7 @@ cd /d "%~dp0"
 :: =====================================================================
 ::                            CONFIGURATION
 :: =====================================================================
-set "VERSION=6.1.8"
+set "VERSION=6.1.9"
 set "TOOLNAME=Windows Cleanup & Optimizer"
 set "BASE_DIR=%LocalAppData%\WCaO_Toolkit"
 set "LOG_RETENTION_DAYS=7"
@@ -150,6 +150,7 @@ echo  %cYEL%[3]%cWHI% Rebuild System Caches%cRES%
 echo  %cYEL%[4]%cWHI% Optimize Power Plan %cRED%(Admin)%cRES%
 echo  %cYEL%[5]%cWHI% Optimize Visual Effects%cRES%
 echo  %cYEL%[6]%cWHI% Windows 11 Classic Context Menu %cGRE%(Toggle)%cRES%
+echo  %cYEL%[7]%cWHI% Edge Rounded Corners Fix %cGRE%(Toggle)%cRES%
 echo  %cYEL%[0]%cWHI% Back to Main Menu%cRES%
 echo.
 set "opt="
@@ -163,6 +164,7 @@ if "!opt!"=="3" call :RebuildCaches
 if "!opt!"=="4" (call :CheckAdmin && call :SetPowerPlan)
 if "!opt!"=="5" call :SetVisualEffects
 if "!opt!"=="6" goto ToggleContextMenu
+if "!opt!"=="7" goto EdgeRoundedMenu
 if "!opt!"=="0" goto main_menu
 goto SystemOptimizeMenu
 
@@ -187,11 +189,11 @@ goto :EOF
 :: 3.3 Rebuild System Caches
 :RebuildCaches
 cls & echo %cCYA%[+] Rebuilding icon ^& thumbnail caches...%cRES%
-call :RunAndLog taskkill /f /im explorer.exe
-timeout /t 1 /nobreak >nul
-call :RunAndLog del /a /f /q "%localappdata%\IconCache.db"
-call :RunAndLog del /a /f /q "%localappdata%\Microsoft\Windows\Explorer\thumbcache_*.db"
-start explorer.exe
+    call :RunAndLog taskkill /f /im explorer.exe
+    timeout /t 2 /nobreak >nul
+    call :RunAndLog del /a /f /q "%localappdata%\IconCache.db"
+    call :RunAndLog del /a /f /q "%localappdata%\Microsoft\Windows\Explorer\thumbcache_*.db"
+    tasklist /FI "IMAGENAME eq explorer.exe" 2>nul | find /I "explorer.exe" >nul || start explorer.exe
 if "!IS_ADMIN!"=="1" (sc query "WSearch" >nul 2>&1 && (call :RunAndLog net stop "WSearch" & call :RunAndLog net start "WSearch"))
 echo  %cGRE%[+] Done.%cRES%
 call :PauseToContinue
@@ -255,14 +257,168 @@ set /p "res_exp= %cYEL%Restart Windows Explorer to apply immediately? (Y/N): %cR
 if /i "!res_exp!"=="Y" (
     echo %cBLU%[+] Restarting Explorer...%cRES%
     call :RunAndLog taskkill /f /im explorer.exe
-    timeout /t 1 /nobreak >nul
-    start explorer.exe
+    timeout /t 2 /nobreak >nul
+    tasklist /FI "IMAGENAME eq explorer.exe" 2>nul | find /I "explorer.exe" >nul || start explorer.exe
     echo %cGRE%[+] Done.%cRES%
 ) else (
     echo %cGRE%[+] Done.%cRES%
 )
 call :PauseToContinue
 goto ToggleContextMenu
+
+:: 3.7 Edge Rounded Corners Fix
+:EdgeRoundedMenu
+cls & call :DrawBox "EDGE ROUNDED CORNERS FIX" "%cCYA%" & echo.
+echo  %cWHI%Patches all Edge shortcuts to disable the forced rounded corners%cRES%
+echo  %cWHI%introduced in Edge v149+.%cRES%
+echo.
+
+set "edge_patched=0"
+powershell -NoProfile -Command "$paths=@(\"$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk\", \"$env:Public\Desktop\Microsoft Edge.lnk\", \"$([Environment]::GetFolderPath('Desktop'))\Microsoft Edge.lnk\", \"$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk\"); $patched=0; $sh=New-Object -Com WScript.Shell; foreach($p in $paths){ if(Test-Path $p){ $s=$sh.CreateShortcut($p); if($s.Arguments -match 'msFeatureGroupNewLookAndFeelHoldout'){ $patched=1; break } } }; if($patched){exit 0}else{exit 1}" >nul 2>&1
+if !errorlevel! equ 0 set "edge_patched=1"
+
+set "patch_stat=%cRED%Not Applied%cRES%"
+if "!edge_patched!"=="1" set "patch_stat=%cGRE%Applied%cRES%"
+
+echo  %cWHI%Current Status: !patch_stat!
+echo.
+echo  %cYEL%[1]%cWHI% Apply Fix   %cGRE%(Disable rounded corners)%cRES%
+echo  %cYEL%[2]%cWHI% Remove Fix  %cYEL%(Restore Edge default shortcuts)%cRES%
+echo  %cYEL%[0]%cWHI% Back%cRES%
+echo.
+set "er_opt="
+set /p "er_opt= %cCYA%Choose option: %cRES%"
+call :LogInput "Edge Rounded Choice" "!er_opt!"
+
+if "!er_opt!"=="1" goto ApplyEdgeFix
+if "!er_opt!"=="2" goto RemoveEdgeFix
+if "!er_opt!"=="0" goto SystemOptimizeMenu
+goto EdgeRoundedMenu
+
+:ApplyEdgeFix
+cls & echo  %cBLU%[+] Applying Edge rounded corners fix...%cRES%
+set "PS_SCRIPT=%TEMP%\edge_fix.ps1"
+(
+echo $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86^)'^)
+echo $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'^),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'^),($env:LocalAppData+'\Microsoft\Edge\Application\msedge.exe'^)^)
+echo $ep=$null
+echo foreach($c in $cands^){if(Test-Path $c^){$ep=$c;break}}
+echo if(-not $ep^){Write-Host '  [-] Edge not found.' -F Red;exit 1}
+echo Write-Host ('  [i] Edge: '+$ep^) -F Cyan
+echo $opts='--disable-features=msShowSignInIndicator,msFeatureGroupNewLookAndFeelHoldout'
+echo $sh=New-Object -ComObject WScript.Shell
+echo $dirs=@(
+echo "$env:Public\Desktop",
+echo [Environment]::GetFolderPath('Desktop'^),
+echo "$env:ProgramData\Microsoft\Windows\Start Menu\Programs",
+echo "$env:AppData\Microsoft\Windows\Start Menu\Programs",
+echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch",
+echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+echo ^)
+echo $found=0
+echo foreach($d in $dirs^){
+echo   if(-not(Test-Path $d^)^){continue}
+echo   Get-ChildItem -Path $d -Filter '*Edge*.lnk' -EA SilentlyContinue ^| ForEach-Object {
+echo     $f = $_.FullName
+echo     try{
+echo       $s=$sh.CreateShortcut($f^); $s.TargetPath=$ep; $s.Arguments=$opts; $s.WorkingDirectory=Split-Path $ep -Parent; $s.IconLocation=$ep+',0'; $s.Save(^)
+echo       Write-Host('  [OK] Patched: '+$f^) -F Green; $found++
+echo     }catch{ Write-Host('  [-] Failed: '+$f^) -F Red }
+echo   }
+echo }
+echo if($found -eq 0^){
+echo   Write-Host '  [*] No shortcuts found. Creating on Desktop...' -F Yellow
+echo   $lnk=$sh.CreateShortcut([Environment]::GetFolderPath('Desktop'^)+'\Microsoft Edge.lnk'^)
+echo   $lnk.TargetPath=$ep; $lnk.Arguments=$opts; $lnk.WorkingDirectory=Split-Path $ep -Parent; $lnk.IconLocation=$ep+',0'; $lnk.Save(^)
+echo   Write-Host '  [OK] Shortcut created on Desktop.' -F Green; $found++
+echo }
+echo Write-Host ('  [+] Total patched: '+$found^) -F Cyan
+) > "!PS_SCRIPT!"
+call :RunAndLog powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
+del "!PS_SCRIPT!" >nul 2>&1
+call :RestartEdge
+echo.
+echo  %cGRE%[+] Done!%cRES%
+call :PauseToContinue & goto EdgeRoundedMenu
+
+:RemoveEdgeFix
+cls & echo  %cBLU%[+] Restoring Edge shortcuts to default...%cRES%
+set "PS_SCRIPT=%TEMP%\edge_unfix.ps1"
+(
+echo $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86^)'^)
+echo $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'^),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'^),($env:LocalAppData+'\Microsoft\Edge\Application\msedge.exe'^)^)
+echo $ep=$null
+echo foreach($c in $cands^){if(Test-Path $c^){$ep=$c;break}}
+echo if(-not $ep^){Write-Host '  [-] Edge not found.' -F Red;exit 1}
+echo Write-Host ('  [i] Edge: '+$ep^) -F Cyan
+echo $sh=New-Object -ComObject WScript.Shell
+echo $dirs=@(
+echo "$env:Public\Desktop",
+echo [Environment]::GetFolderPath('Desktop'^),
+echo "$env:ProgramData\Microsoft\Windows\Start Menu\Programs",
+echo "$env:AppData\Microsoft\Windows\Start Menu\Programs",
+echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch",
+echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
+echo ^)
+echo foreach($d in $dirs^){
+echo   if(-not(Test-Path $d^)^){continue}
+echo   Get-ChildItem -Path $d -Filter '*Edge*.lnk' -EA SilentlyContinue ^| ForEach-Object {
+echo     $f = $_.FullName
+echo     try{
+echo       $s=$sh.CreateShortcut($f^); $s.TargetPath=$ep; $s.Arguments=''; $s.WorkingDirectory=Split-Path $ep -Parent; $s.IconLocation=$ep+',0'; $s.Save(^)
+echo       Write-Host('  [OK] Restored: '+$f^) -F Green
+echo     }catch{ Write-Host('  [-] Failed: '+$f^) -F Red }
+echo   }
+echo }
+echo # Update icon cache without restarting explorer
+echo ie4uinit.exe -show
+echo Write-Host '  [OK] Shortcut cache cleared.' -F Green
+) > "!PS_SCRIPT!"
+call :RunAndLog powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
+del "!PS_SCRIPT!" >nul 2>&1
+call :RestartEdge
+echo.
+echo  %cGRE%[+] Done!%cRES%
+call :PauseToContinue & goto EdgeRoundedMenu
+
+:RestartEdge
+set "edge_was_running=0"
+tasklist /FI "IMAGENAME eq msedge.exe" 2>nul | find /I "msedge.exe" >nul && set "edge_was_running=1"
+if "!edge_was_running!"=="0" goto :EOF
+echo.
+echo  %cYEL%[i] Edge is running. Closing and reopening via shortcut...%cRES%
+echo  %cWHI%    (Your tabs will be restored automatically)%cRES%
+set "PS_SCRIPT=%TEMP%\edge_restart.ps1"
+(
+echo Get-Process msedge -EA SilentlyContinue ^| ForEach-Object { [void]$_.CloseMainWindow(^) }
+echo $deadline=[DateTime]::Now.AddSeconds(4^)
+echo while((Get-Process msedge -EA SilentlyContinue^) -and [DateTime]::Now -lt $deadline^){ Start-Sleep -Milliseconds 300 }
+echo Stop-Process -Name msedge -Force -ErrorAction SilentlyContinue
+echo $deadline=[DateTime]::Now.AddSeconds(10^)
+echo while((Get-Process msedge -EA SilentlyContinue^) -and [DateTime]::Now -lt $deadline^){ Start-Sleep -Milliseconds 300 }
+echo Start-Sleep -Milliseconds 500
+echo $desk=[Environment]::GetFolderPath('Desktop'^)
+echo $paths=@(
+echo   "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk",
+echo   "$desk\Microsoft Edge.lnk",
+echo   "$env:Public\Desktop\Microsoft Edge.lnk",
+echo   "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk"
+echo ^)
+echo $edgeLnk=$null
+echo foreach($p in $paths^){if(Test-Path $p^){$edgeLnk=$p;break}}
+echo if ($edgeLnk^) {
+echo     $sh=New-Object -ComObject WScript.Shell
+echo     $s=$sh.CreateShortcut($edgeLnk^)
+echo     Start-Process $s.TargetPath -ArgumentList ($s.Arguments + ' --restore-last-session'^)
+echo } else {
+echo     $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86^)'^)
+echo     $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'^),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'^)^)
+echo     foreach($c in $cands^){if(Test-Path $c^){Start-Process $c -ArgumentList '--restore-last-session';break}}
+echo }
+) > "!PS_SCRIPT!"
+call :RunAndLog powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
+del "!PS_SCRIPT!" >nul 2>&1
+goto :EOF
 
 :: =====================================================================
 ::                          4. ADVANCED TOOLS
@@ -441,8 +597,8 @@ call :PauseToContinue & goto SystemUtilitiesMenu
 :RestartExplorer
 echo. & echo %cBLU%[+] Restarting Explorer safely...%cRES%
 call :RunAndLog taskkill /f /im explorer.exe
-timeout /t 1 /nobreak >nul
-start explorer.exe
+timeout /t 2 /nobreak >nul
+tasklist /FI "IMAGENAME eq explorer.exe" 2>nul | find /I "explorer.exe" >nul || start explorer.exe
 echo %cGRE%[+] Done.%cRES% & call :PauseToContinue & goto SystemUtilitiesMenu
 
 :: 5.3 Kill 'Not Responding' Tasks
@@ -820,7 +976,7 @@ echo      cls ^& echo Turning off in %%%%i seconds...>> "!bat_path!"
 echo      timeout /t 1 ^>nul>> "!bat_path!"
 echo )>> "!bat_path!"
 echo echo Turning off now...>> "!bat_path!"
-echo powershell -Command "(Add-Type '[DllImport(\"user32.dll\")]public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name a -Pas)::SendMessage(-1,0x0112,0xF170,2)">> "!bat_path!"
+echo powershell -Command "(Add-Type '[DllImport(\"user32.dll\")]public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name a -Pas)::SendMessage(-1,0x0112,0xF170,2)" ^>nul>> "!bat_path!"
 echo exit /b>> "!bat_path!"
 
 if exist "!bat_path!" (echo  %cGRE%[+] Created: "!bat_path!"%cRES%) else (echo  %cRED%[-] Error: Could not create file at "!bat_path!"%cRES%)

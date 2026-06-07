@@ -691,6 +691,11 @@
       border: 1px solid var(--border);
       border-radius: 6px;
       margin-bottom: 2px;
+      cursor: grab;
+    }
+    .tab-bar.is-dragging {
+      scroll-behavior: auto;
+      cursor: grabbing;
     }
     .tab-bar::-webkit-scrollbar { display: none; }
 
@@ -1427,7 +1432,7 @@
   <div class="hero">
     <div class="hero-glow"></div>
     <div class="badge">
-      <span class="vi">PHIÊN BẢN MỚI NHẤT</span><span class="en">LATEST RELEASE</span> — v6.1.8
+      <span class="vi">PHIÊN BẢN MỚI NHẤT</span><span class="en">LATEST RELEASE</span> — v6.1.9
     </div>
     <h1>
       <span class="l1 glitch" data-text="WINDOWS CLEANUP">WINDOWS CLEANUP</span>
@@ -1443,8 +1448,8 @@
       <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer" target="_blank" class="btn-secondary" rel="noopener noreferrer">★ GitHub</a>
     </div>
     <div class="version-tag">
-      <span class="vi">// PHIÊN BẢN 6.1.8 &nbsp;·&nbsp; WINDOWS 10 / 11 &nbsp;·&nbsp; BATCH SCRIPT</span>
-      <span class="en">// RELEASE 6.1.8 &nbsp;·&nbsp; WINDOWS 10 / 11 &nbsp;·&nbsp; BATCH SCRIPT</span>
+      <span class="vi">// PHIÊN BẢN 6.1.9 &nbsp;·&nbsp; WINDOWS 10 / 11 &nbsp;·&nbsp; BATCH SCRIPT</span>
+      <span class="en">// RELEASE 6.1.9 &nbsp;·&nbsp; WINDOWS 10 / 11 &nbsp;·&nbsp; BATCH SCRIPT</span>
     </div>
   </div>
 
@@ -1454,7 +1459,7 @@
         <div class="t-dot r"></div>
         <div class="t-dot y"></div>
         <div class="t-dot g"></div>
-        <div class="t-title">Windows Cleanup &amp; Optimizer v6.1.8</div>
+        <div class="t-title">Windows Cleanup &amp; Optimizer v6.1.9</div>
       </div>
       <div class="t-line"><span class="t-mu">System: C: &nbsp;|&nbsp; Admin: </span><span class="t-gr">YES (Full)</span><span class="t-mu"> &nbsp;|&nbsp; Expert: Off</span></div>
       <div class="t-line">&nbsp;</div>
@@ -1481,7 +1486,7 @@
       <div class="stat-label en">MODULES</div>
     </div>
     <div class="stat-item">
-      <div class="stat-num" id="stat-version">6.1.8</div>
+      <div class="stat-num" id="stat-version">6.1.9</div>
       <div class="stat-label vi">PHIÊN BẢN MỚI NHẤT</div>
       <div class="stat-label en">CURRENT VERSION</div>
     </div>
@@ -1832,9 +1837,9 @@
       <div class="download-box">
         <div class="dl-info">
           <div class="dl-name"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2"/><path d="M11 13h4"/><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/></svg> WCaO.bat</div>
-          <div class="dl-meta">Version 6.1.8 · Batch Script<br>Windows 10/11 · ~67 KB</div>
+          <div class="dl-meta">Version 6.1.9 · Batch Script<br>Windows 10/11 · ~67 KB</div>
         </div>
-        <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.1.8/WCaO.bat" class="dl-btn">
+        <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.1.9/WCaO.bat" class="dl-btn">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg> DOWNLOAD
         </a>
       </div>
@@ -1988,8 +1993,12 @@
       });
 
       let _tabCurrent = 0;
+      window._isTabDragging = false;
+
       function switchTab(i) {
+        if (window._isTabDragging) return;
         if (i === _tabCurrent) return;
+        
         const dir = i > _tabCurrent ? 1 : -1;
         const btns = document.querySelectorAll('.tab-btn');
         const panes = document.querySelectorAll('.tab-pane');
@@ -2009,11 +2018,84 @@
         slider.style.left = activeBtn.offsetLeft + 'px';
         slider.style.width = activeBtn.offsetWidth + 'px';
         const tabBar = document.querySelector('.tab-bar');
-        const scrollPos = activeBtn.offsetLeft - (tabBar.offsetWidth / 2) + (activeBtn.offsetWidth / 2);
-        tabBar.scrollTo({ left: scrollPos, behavior: 'smooth' });
+        
+        const relativeLeft = activeBtn.getBoundingClientRect().left - tabBar.getBoundingClientRect().left + tabBar.scrollLeft;
+        const scrollPos = relativeLeft - (tabBar.clientWidth / 2) + (activeBtn.clientWidth / 2);
+        
+        const start = tabBar.scrollLeft;
+        const change = scrollPos - start;
+        const duration = 350;
+        let startTime = null;
+        
+        tabBar.style.scrollBehavior = 'auto';
+        
+        const animateScroll = (currentTime) => {
+            if (!startTime) startTime = currentTime;
+            const timeElapsed = currentTime - startTime;
+            const progress = Math.min(timeElapsed / duration, 1);
+            
+            const ease = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+            
+            tabBar.scrollLeft = start + change * ease;
+            if (timeElapsed < duration) {
+                requestAnimationFrame(animateScroll);
+            } else {
+                tabBar.style.scrollBehavior = 'smooth';
+            }
+        };
+        requestAnimationFrame(animateScroll);
+        
         _tabCurrent = i;
       }
       window.switchTab = switchTab;
+
+      (function initTabDrag() {
+        const tabBar = document.querySelector('.tab-bar');
+        if (!tabBar) return;
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        tabBar.addEventListener('mousedown', (e) => {
+          isDown = true;
+          window._isTabDragging = false;
+          tabBar.classList.add('is-dragging');
+          startX = e.pageX - tabBar.offsetLeft;
+          scrollLeft = tabBar.scrollLeft;
+        });
+
+        tabBar.addEventListener('mouseleave', () => {
+          isDown = false;
+          tabBar.classList.remove('is-dragging');
+        });
+
+        window.addEventListener('mouseup', () => {
+          isDown = false;
+          tabBar.classList.remove('is-dragging');
+          setTimeout(() => {
+              window._isTabDragging = false;
+          }, 50);
+        });
+
+        tabBar.addEventListener('mousemove', (e) => {
+          if (!isDown) return;
+          const x = e.pageX - tabBar.offsetLeft;
+          const walk = (x - startX);
+          
+          if (Math.abs(walk) > 5) {
+              window._isTabDragging = true;
+              e.preventDefault();
+              tabBar.scrollLeft = scrollLeft - walk * 1.5;
+          }
+        });
+
+        tabBar.addEventListener('wheel', (e) => {
+          if (e.deltaY !== 0) {
+            e.preventDefault();
+            tabBar.scrollLeft += e.deltaY;
+          }
+        });
+      })();
 
       async function fetchLatestRelease() {
         try {

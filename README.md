@@ -1,8 +1,8 @@
 *Read this in other languages: [English](README.md) | [Tiếng Việt](README-vi.md)*
 
-# 🚀 Windows Cleanup & Optimizer v6.1.8 - Ultimate Toolkit (WCaO) <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.1.8/WCaO.bat"><img src="https://img.shields.io/badge/Download-brightgreen?style=flat&logo=download&logoColor=white" alt="Latest Release" width="85"></a>
+# 🚀 Windows Cleanup & Optimizer v6.1.9 - Ultimate Toolkit (WCaO) <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.1.9/WCaO.bat"><img src="https://img.shields.io/badge/Download-brightgreen?style=flat&logo=download&logoColor=white" alt="Latest Release" width="85"></a>
 
-![Version](https://img.shields.io/badge/version-v6.1.8-blue?style=plastic) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=plastic&logo=windows&logoColor=white) ![Language](https://img.shields.io/badge/language-Batch-4D4D4D?style=plastic&logo=windows-terminal&logoColor=white) ![License](https://img.shields.io/badge/license-Open%20Source-brightgreen?style=plastic&logo=opensource&logoColor=white) ![Admin](https://img.shields.io/badge/requires_Admin-Optional-yellow?style=plastic&logo=powershell&logoColor=white) ![Status](https://img.shields.io/badge/status-Active-success?style=plastic&logo=rocket&logoColor=white)
+![Version](https://img.shields.io/badge/version-v6.1.9-blue?style=plastic) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=plastic&logo=windows&logoColor=white) ![Language](https://img.shields.io/badge/language-Batch-4D4D4D?style=plastic&logo=windows-terminal&logoColor=white) ![License](https://img.shields.io/badge/license-Open%20Source-brightgreen?style=plastic&logo=opensource&logoColor=white) ![Admin](https://img.shields.io/badge/requires_Admin-Optional-yellow?style=plastic&logo=powershell&logoColor=white) ![Status](https://img.shields.io/badge/status-Active-success?style=plastic&logo=rocket&logoColor=white)
 
 Open-source system maintenance tool written in Batch Script. Version v6.1.7 provides a total of **9 categories** with specific functions to help clean, fix, and optimize Windows. If you see me updating **README.md** to the **current** version, it means the project is ***indefinitely paused***...
 
@@ -40,6 +40,7 @@ The toolkit is divided into 9 main categories on the Menu, including the followi
 | **Optimize Power Plan** | Add, remove, or set power plans (Ultimate, High...). | Yes |
 | **Optimize Visual Effects** | Enable/disable visual effects to boost performance. | No |
 | **Win 11 Context Menu** | Toggle between Win 10 and Win 11 context menus (Auto-restarts Explorer to apply). | No |
+| **Edge Rounded Corners Fix** | Patch shortcuts to disable forced rounded corners on Edge v149+. | No |
 
 ### 4. Advanced Tools
 | Function | Specific Feature | Expert Mode Required |
