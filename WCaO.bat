@@ -1,6 +1,6 @@
 @echo off
 setlocal enabledelayedexpansion
-title Windows Cleanup ^& Optimizer v6.1.9 - Ultimate Toolkit
+title Windows Cleanup ^& Optimizer v6.2.0 - Ultimate Toolkit
 
 reg add "HKCU\Console" /v VirtualTerminalLevel /t REG_DWORD /d 1 /f >nul 2>&1
 cd /d "%~dp0"
@@ -8,7 +8,7 @@ cd /d "%~dp0"
 :: =====================================================================
 ::                            CONFIGURATION
 :: =====================================================================
-set "VERSION=6.1.9"
+set "VERSION=6.2.0"
 set "TOOLNAME=Windows Cleanup & Optimizer"
 set "BASE_DIR=%LocalAppData%\WCaO_Toolkit"
 set "LOG_RETENTION_DAYS=7"
@@ -269,16 +269,17 @@ goto ToggleContextMenu
 :: 3.7 Edge Rounded Corners Fix
 :EdgeRoundedMenu
 cls & call :DrawBox "EDGE ROUNDED CORNERS FIX" "%cCYA%" & echo.
-echo  %cWHI%Patches all Edge shortcuts to disable the forced rounded corners%cRES%
-echo  %cWHI%introduced in Edge v149+.%cRES%
+echo  %cWHI%Patches all Edge shortcuts%cRES%
+echo  %cWHI%to disable forced rounded corners introduced in Edge v149+.%cRES%
 echo.
 
-set "edge_patched=0"
-powershell -NoProfile -Command "$paths=@(\"$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk\", \"$env:Public\Desktop\Microsoft Edge.lnk\", \"$([Environment]::GetFolderPath('Desktop'))\Microsoft Edge.lnk\", \"$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk\"); $patched=0; $sh=New-Object -Com WScript.Shell; foreach($p in $paths){ if(Test-Path $p){ $s=$sh.CreateShortcut($p); if($s.Arguments -match 'msFeatureGroupNewLookAndFeelHoldout'){ $patched=1; break } } }; if($patched){exit 0}else{exit 1}" >nul 2>&1
-if !errorlevel! equ 0 set "edge_patched=1"
+set "edge_stat_code=0"
+powershell -NoProfile -Command "$sh=New-Object -Com WScript.Shell; $dirs=@(\"$env:Public\Desktop\", \"$env:USERPROFILE\Desktop\", [Environment]::GetFolderPath('Desktop'), \"$env:ProgramData\Microsoft\Windows\Start Menu\Programs\", \"$env:AppData\Microsoft\Windows\Start Menu\Programs\", \"$env:AppData\Microsoft\Internet Explorer\Quick Launch\"); $tot=0; $pat=0; foreach($d in $dirs){ if(Test-Path $d){ Get-ChildItem -Path $d -Recurse -Force -Filter '*.lnk' -EA SilentlyContinue | ForEach-Object { try{ $s=$sh.CreateShortcut($_.FullName); if($s.TargetPath -like '*msedge.exe'){ $tot++; if($s.Arguments -match 'msForceNoRoundedCornerAndMargin'){ $pat++ } } }catch{} } } }; if($tot -gt 0 -and $pat -eq $tot){exit 1}elseif($pat -gt 0){exit 2}else{exit 0}" >nul 2>&1
+set "edge_stat_code=!errorlevel!"
 
 set "patch_stat=%cRED%Not Applied%cRES%"
-if "!edge_patched!"=="1" set "patch_stat=%cGRE%Applied%cRES%"
+if "!edge_stat_code!"=="1" set "patch_stat=%cGRE%Fully Applied%cRES%"
+if "!edge_stat_code!"=="2" set "patch_stat=%cYEL%Partially Applied%cRES%"
 
 echo  %cWHI%Current Status: !patch_stat!
 echo.
@@ -296,44 +297,66 @@ if "!er_opt!"=="0" goto SystemOptimizeMenu
 goto EdgeRoundedMenu
 
 :ApplyEdgeFix
-cls & echo  %cBLU%[+] Applying Edge rounded corners fix...%cRES%
+cls & echo  %cBLU%[+] Applying Edge rounded corners fix across all profiles...%cRES%
 set "PS_SCRIPT=%TEMP%\edge_fix.ps1"
-(
-echo $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86^)'^)
-echo $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'^),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'^),($env:LocalAppData+'\Microsoft\Edge\Application\msedge.exe'^)^)
-echo $ep=$null
-echo foreach($c in $cands^){if(Test-Path $c^){$ep=$c;break}}
-echo if(-not $ep^){Write-Host '  [-] Edge not found.' -F Red;exit 1}
-echo Write-Host ('  [i] Edge: '+$ep^) -F Cyan
-echo $opts='--disable-features=msShowSignInIndicator,msFeatureGroupNewLookAndFeelHoldout'
-echo $sh=New-Object -ComObject WScript.Shell
-echo $dirs=@(
-echo "$env:Public\Desktop",
-echo [Environment]::GetFolderPath('Desktop'^),
-echo "$env:ProgramData\Microsoft\Windows\Start Menu\Programs",
-echo "$env:AppData\Microsoft\Windows\Start Menu\Programs",
-echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch",
-echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
-echo ^)
-echo $found=0
-echo foreach($d in $dirs^){
-echo   if(-not(Test-Path $d^)^){continue}
-echo   Get-ChildItem -Path $d -Filter '*Edge*.lnk' -EA SilentlyContinue ^| ForEach-Object {
-echo     $f = $_.FullName
-echo     try{
-echo       $s=$sh.CreateShortcut($f^); $s.TargetPath=$ep; $s.Arguments=$opts; $s.WorkingDirectory=Split-Path $ep -Parent; $s.IconLocation=$ep+',0'; $s.Save(^)
-echo       Write-Host('  [OK] Patched: '+$f^) -F Green; $found++
-echo     }catch{ Write-Host('  [-] Failed: '+$f^) -F Red }
-echo   }
-echo }
-echo if($found -eq 0^){
-echo   Write-Host '  [*] No shortcuts found. Creating on Desktop...' -F Yellow
-echo   $lnk=$sh.CreateShortcut([Environment]::GetFolderPath('Desktop'^)+'\Microsoft Edge.lnk'^)
-echo   $lnk.TargetPath=$ep; $lnk.Arguments=$opts; $lnk.WorkingDirectory=Split-Path $ep -Parent; $lnk.IconLocation=$ep+',0'; $lnk.Save(^)
-echo   Write-Host '  [OK] Shortcut created on Desktop.' -F Green; $found++
-echo }
-echo Write-Host ('  [+] Total patched: '+$found^) -F Cyan
-) > "!PS_SCRIPT!"
+echo $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86)') > "!PS_SCRIPT!"
+echo $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'),($env:LocalAppData+'\Microsoft\Edge\Application\msedge.exe')) >> "!PS_SCRIPT!"
+echo $ep=$null >> "!PS_SCRIPT!"
+echo foreach($c in $cands){if(Test-Path $c){$ep=$c;break}} >> "!PS_SCRIPT!"
+echo if(-not $ep){Write-Host '  [-] Edge not found.' -F Red;exit 1} >> "!PS_SCRIPT!"
+echo Write-Host ('  [i] Edge: '+$ep) -F Cyan >> "!PS_SCRIPT!"
+echo $f1='--enable-features=msForceNoRoundedCornerAndMargin' >> "!PS_SCRIPT!"
+echo $sh=New-Object -ComObject WScript.Shell >> "!PS_SCRIPT!"
+echo $dirs=@( >> "!PS_SCRIPT!"
+echo "$env:Public\Desktop", >> "!PS_SCRIPT!"
+echo "$env:USERPROFILE\Desktop", >> "!PS_SCRIPT!"
+echo [Environment]::GetFolderPath('Desktop'), >> "!PS_SCRIPT!"
+echo "$env:ProgramData\Microsoft\Windows\Start Menu\Programs", >> "!PS_SCRIPT!"
+echo "$env:AppData\Microsoft\Windows\Start Menu\Programs", >> "!PS_SCRIPT!"
+echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch" >> "!PS_SCRIPT!"
+echo ) >> "!PS_SCRIPT!"
+echo $tot=0; $newly=0 >> "!PS_SCRIPT!"
+echo foreach($d in $dirs){ >> "!PS_SCRIPT!"
+echo   if(-not(Test-Path $d)){continue} >> "!PS_SCRIPT!"
+echo   Get-ChildItem -Path $d -Recurse -Force -Filter '*.lnk' -EA SilentlyContinue ^| ForEach-Object { >> "!PS_SCRIPT!"
+echo     $f = $_.FullName >> "!PS_SCRIPT!"
+echo     try{ >> "!PS_SCRIPT!"
+echo       $s=$sh.CreateShortcut($f) >> "!PS_SCRIPT!"
+echo       if($s.TargetPath -like '*msedge.exe'){ >> "!PS_SCRIPT!"
+echo         $tot++ >> "!PS_SCRIPT!"
+echo         $a=$s.Arguments >> "!PS_SCRIPT!"
+echo         $a=$a -replace '--disable-features=msShowSignInIndicator,msFeatureGroupNewLookAndFeelHoldout','' >> "!PS_SCRIPT!"
+echo         $a=$a -replace '--disable-features=msFeatureGroupNewLookAndFeelHoldout','' >> "!PS_SCRIPT!"
+echo         $changed=0 >> "!PS_SCRIPT!"
+echo         if($a -notmatch 'msForceNoRoundedCornerAndMargin'){ >> "!PS_SCRIPT!"
+echo           $a=($a+' '+$f1).Trim() >> "!PS_SCRIPT!"
+echo           $changed=1 >> "!PS_SCRIPT!"
+echo         } >> "!PS_SCRIPT!"
+echo         $a=($a -replace '\s+',' ').Trim() >> "!PS_SCRIPT!"
+echo         if($changed -eq 1 -or $s.Arguments -ne $a){ >> "!PS_SCRIPT!"
+echo           $s.Arguments=$a; $s.Save() >> "!PS_SCRIPT!"
+echo           Write-Host('  [OK] Patched: '+$f) -F Green; $newly++ >> "!PS_SCRIPT!"
+echo         }else{ >> "!PS_SCRIPT!"
+echo           Write-Host('  [i] Already patched: '+$f) -F Yellow >> "!PS_SCRIPT!"
+echo         } >> "!PS_SCRIPT!"
+echo       } >> "!PS_SCRIPT!"
+echo     }catch{} >> "!PS_SCRIPT!"
+echo   } >> "!PS_SCRIPT!"
+echo } >> "!PS_SCRIPT!"
+echo try{ >> "!PS_SCRIPT!"
+echo   New-Item -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Force -ErrorAction SilentlyContinue ^| Out-Null >> "!PS_SCRIPT!"
+echo   Set-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Name 'Windows11VisualEffectsEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo   Set-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Name 'StartupBoostEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo   Set-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Name 'BackgroundModeEnabled' -Value 0 -Type DWord -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo   Write-Host '  [OK] Edge policies applied (VisualEffects=0, StartupBoost=0, BackgroundMode=0).' -F Green >> "!PS_SCRIPT!"
+echo }catch{} >> "!PS_SCRIPT!"
+echo if($tot -eq 0){ >> "!PS_SCRIPT!"
+echo   Write-Host '  [*] No shortcuts found. Creating on Desktop...' -F Yellow >> "!PS_SCRIPT!"
+echo   $lnk=$sh.CreateShortcut([Environment]::GetFolderPath('Desktop')+'\Microsoft Edge.lnk') >> "!PS_SCRIPT!"
+echo   $lnk.TargetPath=$ep; $lnk.Arguments=$f1; $lnk.WorkingDirectory=Split-Path $ep -Parent; $lnk.IconLocation=$ep+',0'; $lnk.Save() >> "!PS_SCRIPT!"
+echo   Write-Host '  [OK] Shortcut created on Desktop.' -F Green; $tot++ >> "!PS_SCRIPT!"
+echo } >> "!PS_SCRIPT!"
+echo Write-Host ('  [+] Edge shortcuts found: '+$tot+' ('+$newly+' newly updated)') -F Cyan >> "!PS_SCRIPT!"
 call :RunAndLog powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 del "!PS_SCRIPT!" >nul 2>&1
 call :RestartEdge
@@ -344,36 +367,39 @@ call :PauseToContinue & goto EdgeRoundedMenu
 :RemoveEdgeFix
 cls & echo  %cBLU%[+] Restoring Edge shortcuts to default...%cRES%
 set "PS_SCRIPT=%TEMP%\edge_unfix.ps1"
-(
-echo $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86^)'^)
-echo $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'^),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'^),($env:LocalAppData+'\Microsoft\Edge\Application\msedge.exe'^)^)
-echo $ep=$null
-echo foreach($c in $cands^){if(Test-Path $c^){$ep=$c;break}}
-echo if(-not $ep^){Write-Host '  [-] Edge not found.' -F Red;exit 1}
-echo Write-Host ('  [i] Edge: '+$ep^) -F Cyan
-echo $sh=New-Object -ComObject WScript.Shell
-echo $dirs=@(
-echo "$env:Public\Desktop",
-echo [Environment]::GetFolderPath('Desktop'^),
-echo "$env:ProgramData\Microsoft\Windows\Start Menu\Programs",
-echo "$env:AppData\Microsoft\Windows\Start Menu\Programs",
-echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch",
-echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar"
-echo ^)
-echo foreach($d in $dirs^){
-echo   if(-not(Test-Path $d^)^){continue}
-echo   Get-ChildItem -Path $d -Filter '*Edge*.lnk' -EA SilentlyContinue ^| ForEach-Object {
-echo     $f = $_.FullName
-echo     try{
-echo       $s=$sh.CreateShortcut($f^); $s.TargetPath=$ep; $s.Arguments=''; $s.WorkingDirectory=Split-Path $ep -Parent; $s.IconLocation=$ep+',0'; $s.Save(^)
-echo       Write-Host('  [OK] Restored: '+$f^) -F Green
-echo     }catch{ Write-Host('  [-] Failed: '+$f^) -F Red }
-echo   }
-echo }
-echo # Update icon cache without restarting explorer
-echo ie4uinit.exe -show
-echo Write-Host '  [OK] Shortcut cache cleared.' -F Green
-) > "!PS_SCRIPT!"
+echo $sh=New-Object -ComObject WScript.Shell > "!PS_SCRIPT!"
+echo $dirs=@( >> "!PS_SCRIPT!"
+echo "$env:Public\Desktop", >> "!PS_SCRIPT!"
+echo "$env:USERPROFILE\Desktop", >> "!PS_SCRIPT!"
+echo [Environment]::GetFolderPath('Desktop'), >> "!PS_SCRIPT!"
+echo "$env:ProgramData\Microsoft\Windows\Start Menu\Programs", >> "!PS_SCRIPT!"
+echo "$env:AppData\Microsoft\Windows\Start Menu\Programs", >> "!PS_SCRIPT!"
+echo "$env:AppData\Microsoft\Internet Explorer\Quick Launch" >> "!PS_SCRIPT!"
+echo ) >> "!PS_SCRIPT!"
+echo foreach($d in $dirs){ >> "!PS_SCRIPT!"
+echo   if(-not(Test-Path $d)){continue} >> "!PS_SCRIPT!"
+echo   Get-ChildItem -Path $d -Recurse -Force -Filter '*.lnk' -EA SilentlyContinue ^| ForEach-Object { >> "!PS_SCRIPT!"
+echo     try{ >> "!PS_SCRIPT!"
+echo       $s=$sh.CreateShortcut($_.FullName) >> "!PS_SCRIPT!"
+echo       if($s.TargetPath -like '*msedge.exe'){ >> "!PS_SCRIPT!"
+echo         $a=$s.Arguments >> "!PS_SCRIPT!"
+echo         if($a -match 'msFeatureGroupNewLookAndFeelHoldout' -or $a -match 'msForceNoRoundedCornerAndMargin'){ >> "!PS_SCRIPT!"
+echo           $a=$a -replace '--disable-features=msShowSignInIndicator,msFeatureGroupNewLookAndFeelHoldout','' >> "!PS_SCRIPT!"
+echo           $a=$a -replace '--disable-features=msFeatureGroupNewLookAndFeelHoldout','' >> "!PS_SCRIPT!"
+echo           $a=$a -replace '--enable-features=msForceNoRoundedCornerAndMargin','' >> "!PS_SCRIPT!"
+echo           $a=($a -replace '\s+',' ').Trim() >> "!PS_SCRIPT!"
+echo           $s.Arguments=$a; $s.Save() >> "!PS_SCRIPT!"
+echo           Write-Host('  [OK] Restored: '+$_.FullName) -F Green >> "!PS_SCRIPT!"
+echo         } >> "!PS_SCRIPT!"
+echo       } >> "!PS_SCRIPT!"
+echo     }catch{} >> "!PS_SCRIPT!"
+echo   } >> "!PS_SCRIPT!"
+echo } >> "!PS_SCRIPT!"
+echo Remove-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Name 'Windows11VisualEffectsEnabled' -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo Remove-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Name 'StartupBoostEnabled' -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo Remove-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\Edge' -Name 'BackgroundModeEnabled' -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo ie4uinit.exe -show >> "!PS_SCRIPT!"
+echo Write-Host '  [OK] Shortcut cache cleared.' -F Green >> "!PS_SCRIPT!"
 call :RunAndLog powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 del "!PS_SCRIPT!" >nul 2>&1
 call :RestartEdge
@@ -389,33 +415,31 @@ echo.
 echo  %cYEL%[i] Edge is running. Closing and reopening via shortcut...%cRES%
 echo  %cWHI%    (Your tabs will be restored automatically)%cRES%
 set "PS_SCRIPT=%TEMP%\edge_restart.ps1"
-(
-echo Get-Process msedge -EA SilentlyContinue ^| ForEach-Object { [void]$_.CloseMainWindow(^) }
-echo $deadline=[DateTime]::Now.AddSeconds(4^)
-echo while((Get-Process msedge -EA SilentlyContinue^) -and [DateTime]::Now -lt $deadline^){ Start-Sleep -Milliseconds 300 }
-echo Stop-Process -Name msedge -Force -ErrorAction SilentlyContinue
-echo $deadline=[DateTime]::Now.AddSeconds(10^)
-echo while((Get-Process msedge -EA SilentlyContinue^) -and [DateTime]::Now -lt $deadline^){ Start-Sleep -Milliseconds 300 }
-echo Start-Sleep -Milliseconds 500
-echo $desk=[Environment]::GetFolderPath('Desktop'^)
-echo $paths=@(
-echo   "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk",
-echo   "$desk\Microsoft Edge.lnk",
-echo   "$env:Public\Desktop\Microsoft Edge.lnk",
-echo   "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk"
-echo ^)
-echo $edgeLnk=$null
-echo foreach($p in $paths^){if(Test-Path $p^){$edgeLnk=$p;break}}
-echo if ($edgeLnk^) {
-echo     $sh=New-Object -ComObject WScript.Shell
-echo     $s=$sh.CreateShortcut($edgeLnk^)
-echo     Start-Process $s.TargetPath -ArgumentList ($s.Arguments + ' --restore-last-session'^)
-echo } else {
-echo     $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86^)'^)
-echo     $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'^),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe'^)^)
-echo     foreach($c in $cands^){if(Test-Path $c^){Start-Process $c -ArgumentList '--restore-last-session';break}}
-echo }
-) > "!PS_SCRIPT!"
+echo Get-Process msedge -EA SilentlyContinue ^| ForEach-Object { [void]$_.CloseMainWindow() } > "!PS_SCRIPT!"
+echo $deadline=[DateTime]::Now.AddSeconds(4) >> "!PS_SCRIPT!"
+echo while((Get-Process msedge -EA SilentlyContinue) -and [DateTime]::Now -lt $deadline){ Start-Sleep -Milliseconds 300 } >> "!PS_SCRIPT!"
+echo Stop-Process -Name msedge -Force -ErrorAction SilentlyContinue >> "!PS_SCRIPT!"
+echo $deadline=[DateTime]::Now.AddSeconds(10) >> "!PS_SCRIPT!"
+echo while((Get-Process msedge -EA SilentlyContinue) -and [DateTime]::Now -lt $deadline){ Start-Sleep -Milliseconds 300 } >> "!PS_SCRIPT!"
+echo Start-Sleep -Milliseconds 500 >> "!PS_SCRIPT!"
+echo $desk=[Environment]::GetFolderPath('Desktop') >> "!PS_SCRIPT!"
+echo $paths=@( >> "!PS_SCRIPT!"
+echo   "$env:AppData\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk", >> "!PS_SCRIPT!"
+echo   "$desk\Microsoft Edge.lnk", >> "!PS_SCRIPT!"
+echo   "$env:Public\Desktop\Microsoft Edge.lnk", >> "!PS_SCRIPT!"
+echo   "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk" >> "!PS_SCRIPT!"
+echo ) >> "!PS_SCRIPT!"
+echo $edgeLnk=$null >> "!PS_SCRIPT!"
+echo foreach($p in $paths){if(Test-Path $p){$edgeLnk=$p;break}} >> "!PS_SCRIPT!"
+echo if ($edgeLnk) { >> "!PS_SCRIPT!"
+echo     $sh=New-Object -ComObject WScript.Shell >> "!PS_SCRIPT!"
+echo     $s=$sh.CreateShortcut($edgeLnk) >> "!PS_SCRIPT!"
+echo     Start-Process $s.TargetPath -ArgumentList ($s.Arguments + ' --restore-last-session') >> "!PS_SCRIPT!"
+echo } else { >> "!PS_SCRIPT!"
+echo     $x86=[System.Environment]::GetEnvironmentVariable('ProgramFiles(x86)') >> "!PS_SCRIPT!"
+echo     $cands=@(($x86+'\Microsoft\Edge\Application\msedge.exe'),($env:ProgramFiles+'\Microsoft\Edge\Application\msedge.exe')) >> "!PS_SCRIPT!"
+echo     foreach($c in $cands){if(Test-Path $c){Start-Process $c -ArgumentList '--restore-last-session';break}} >> "!PS_SCRIPT!"
+echo } >> "!PS_SCRIPT!"
 call :RunAndLog powershell -NoProfile -ExecutionPolicy Bypass -File "!PS_SCRIPT!"
 del "!PS_SCRIPT!" >nul 2>&1
 goto :EOF
