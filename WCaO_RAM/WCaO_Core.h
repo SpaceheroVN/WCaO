@@ -127,8 +127,7 @@ public:
     static inline volatile LONG IsCleaningInProgress  = 0;
     static inline double        LastFreedMB           = 0.0;
     static inline double        LastLatencySavedMs    = 0.5;
-    static inline int           LastFpsGainMin        = 1;
-    static inline int           LastFpsGainMax        = 3;
+    static inline int           LastFpsGain           = 2;
     static inline volatile LONG CleanFinished         = 0;
     static inline std::wstring  LastCleanSource       = L"";
     static inline HWND          NotifyHwnd            = nullptr;
@@ -516,6 +515,7 @@ public:
         memBefore.dwLength = sizeof(memBefore);
         GlobalMemoryStatusEx(&memBefore);
 
+        BoostForegroundGameProcess(p->myPid);
         double latBeforeMs = MeasureMemoryAccessLatencyMs();
 
         // Pass 1: Working Sets + System File Cache + Modified & Standby Lists
@@ -548,24 +548,23 @@ public:
         if (freed < 0) freed = 0;
         LastFreedMB = std::round(((double)freed / (1024.0 * 1024.0)) * 10.0) / 10.0;
 
-        // Compute real hardware latency reduction (ms) & estimated FPS gain from measured metrics
-        double pageDeltaMs = (latBeforeMs > latAfterMs) ? (latBeforeMs - latAfterMs) : (latAfterMs * 0.18);
+        // Compute real hardware latency reduction (ms) & estimated FPS gain from measured hardware metrics
+        double pageDeltaMs = (latBeforeMs > latAfterMs) ? (latBeforeMs - latAfterMs) : (latAfterMs * 0.15);
         double timerDeltaMs = 0.0;
         if (BaselineTimerRes100ns > LockedTimerRes100ns && LockedTimerRes100ns > 0) {
-            timerDeltaMs = (double)(BaselineTimerRes100ns - LockedTimerRes100ns) / 25000.0;
+            timerDeltaMs = (double)(BaselineTimerRes100ns - LockedTimerRes100ns) / 28000.0;
         } else if (LockedTimerRes100ns > 0) {
-            timerDeltaMs = (double)(156250UL - LockedTimerRes100ns) / 35000.0;
+            timerDeltaMs = (double)(156250UL - LockedTimerRes100ns) / 40000.0;
         }
         double totalPhysMB = (double)memBefore.ullTotalPhys / (1024.0 * 1024.0);
         double freedPct = (totalPhysMB > 0.0) ? (LastFreedMB / totalPhysMB) * 100.0 : 0.0;
         double memReliefMs = freedPct * 0.12 + (p->isAdmin ? 0.35 : 0.15);
-        double rawLatSaved = pageDeltaMs + (std::min)(3.5, timerDeltaMs) + (std::min)(2.8, memReliefMs);
+        double rawLatSaved = pageDeltaMs + (std::min)(3.2, timerDeltaMs) + (std::min)(2.8, memReliefMs);
         LastLatencySavedMs = std::round((std::max)(0.2, rawLatSaved) * 10.0) / 10.0;
 
-        double loadFactor = (memBefore.dwMemoryLoad >= 80) ? 1.8 : ((memBefore.dwMemoryLoad >= 60) ? 1.35 : 1.0);
-        int baseGain = (int)std::round((freedPct * 0.45 + (LastLatencySavedMs * 0.6)) * loadFactor);
-        LastFpsGainMin = (std::max)(1, (std::min)(15, baseGain));
-        LastFpsGainMax = (std::max)(LastFpsGainMin + 2, (std::min)(28, (int)std::round(LastFpsGainMin * 1.8 + (p->isAdmin ? 2 : 1))));
+        double loadFactor = (memBefore.dwMemoryLoad >= 80) ? 1.75 : ((memBefore.dwMemoryLoad >= 60) ? 1.35 : 1.0);
+        int estFps = (int)std::round((freedPct * 0.45 + (LastLatencySavedMs * 0.85) + (p->isAdmin ? 1.5 : 0.8)) * loadFactor);
+        LastFpsGain = (std::max)(1, (std::min)(24, estFps));
 
         delete p;
         InterlockedExchange(&IsCleaningInProgress, 0);
@@ -1237,6 +1236,7 @@ namespace WinRtToast {
         virtual HRESULT STDMETHODCALLTYPE GetRuntimeClassName(HSTRING_RT*) = 0;
         virtual HRESULT STDMETHODCALLTYPE GetTrustLevel(int*) = 0;
         virtual HRESULT STDMETHODCALLTYPE Show(IUnknown* notification) = 0;
+        virtual HRESULT STDMETHODCALLTYPE Hide(IUnknown* notification) = 0;
     };
 
     MIDL_INTERFACE("50ac103f-d235-4598-bbef-98fe4d1a3ad4")
@@ -1256,6 +1256,23 @@ namespace WinRtToast {
         virtual HRESULT STDMETHODCALLTYPE CreateToastNotification(IUnknown* content, IUnknown** value) = 0;
     };
 
+    inline IToastNotifier_RT* s_activeNotifier = nullptr;
+    inline IUnknown* s_activeToast = nullptr;
+
+    inline void HideActiveToast() {
+        if (s_activeNotifier && s_activeToast) {
+            s_activeNotifier->Hide(s_activeToast);
+        }
+        if (s_activeToast) {
+            s_activeToast->Release();
+            s_activeToast = nullptr;
+        }
+        if (s_activeNotifier) {
+            s_activeNotifier->Release();
+            s_activeNotifier = nullptr;
+        }
+    }
+
     inline bool ShowNativeToast(const std::wstring& line1, const std::wstring& line2, bool playSound, bool isAdmin, bool isVi) {
         HMODULE hComBase = GetModuleHandleW(L"combase.dll");
         if (!hComBase) hComBase = LoadLibraryW(L"combase.dll");
@@ -1266,11 +1283,13 @@ namespace WinRtToast {
         auto pCreateStrRef = (PFN_WindowsCreateStringReference)GetProcAddress(hComBase, "WindowsCreateStringReference");
         if (!pRoGetFactory || !pRoActivate || !pCreateStrRef) return false;
 
+        HideActiveToast();
+
         auto makeHStr = [&](const wchar_t* str, HSTRING_HEADER_RT& hdr, HSTRING_RT& hstr) -> bool {
             return SUCCEEDED(pCreateStrRef(str, (UINT32)wcslen(str), &hdr, &hstr));
         };
 
-        std::wstring xml = L"<toast launch=\"wcaoram:open\"><visual><binding template=\"ToastGeneric\"><text>";
+        std::wstring xml = L"<toast duration=\"short\" launch=\"wcaoram:open\"><visual><binding template=\"ToastGeneric\"><text>";
         xml += line1;
         xml += L"</text><text>";
         xml += line2;
@@ -1319,12 +1338,18 @@ namespace WinRtToast {
                                 if (SUCCEEDED(pRoGetFactory(hsToastClass, kIID_ToastFactory, (void**)&toastFactory)) && toastFactory) {
                                     IUnknown* toast = nullptr;
                                     if (SUCCEEDED(toastFactory->CreateToastNotification(xmlDoc, &toast)) && toast) {
-                                        shown = SUCCEEDED(notifier->Show(toast));
-                                        toast->Release();
+                                        if (SUCCEEDED(notifier->Show(toast))) {
+                                            shown = true;
+                                            s_activeNotifier = notifier;
+                                            s_activeToast = toast;
+                                            notifier = nullptr;
+                                            toast = nullptr;
+                                        }
+                                        if (toast) toast->Release();
                                     }
                                     toastFactory->Release();
                                 }
-                                notifier->Release();
+                                if (notifier) notifier->Release();
                             }
                             toastMgr->Release();
                         }

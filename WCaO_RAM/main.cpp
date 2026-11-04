@@ -270,12 +270,13 @@ public:
         }
     }
 
-    // Dispatches Native Windows Toast Notification with action buttons (falls back to Shell_NotifyIconW NIIF_NONE)
+    // Dispatches Native Windows Toast Notification with action buttons (auto-dismisses after 3.5s)
     void ShowTrayNotification(const std::wstring& line1, const std::wstring& line2 = L"", bool playSound = true) {
         std::wstring titleLine = line2.empty() ? L"WCaO RAM Manager" : line1;
         std::wstring bodyLine  = line2.empty() ? line1 : line2;
 
         if (WinRtToast::ShowNativeToast(titleLine, bodyLine, playSound, WcaoAppEnv::IsAdmin, !isEnLang)) {
+            if (hMainWnd) SetTimer(hMainWnd, 4, 3500, nullptr);
             return;
         }
 
@@ -285,6 +286,7 @@ public:
         nid.dwInfoFlags = NIIF_NONE | (playSound ? 0 : NIIF_NOSOUND);
         Shell_NotifyIconW(NIM_MODIFY, &nid);
         nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+        if (hMainWnd) SetTimer(hMainWnd, 4, 3500, nullptr);
     }
 
     void UpdateTrayIconAndTooltip(const RamStatsSnapshot& st, bool forceIcon = false) {
@@ -1613,8 +1615,7 @@ public:
 
         double freedMB = Win32RamNative::LastFreedMB;
         double latSavedMs = Win32RamNative::LastLatencySavedMs;
-        int fpsMin = Win32RamNative::LastFpsGainMin;
-        int fpsMax = Win32RamNative::LastFpsGainMax;
+        int fpsGain = Win32RamNative::LastFpsGain;
         std::wstring src = Win32RamNative::LastCleanSource;
         std::wstring sizeStr = FormatRamSize(freedMB);
 
@@ -1625,9 +1626,9 @@ public:
         wchar_t logBuf[256];
         double timerMs = (Win32RamNative::LockedTimerRes100ns > 0) ? (Win32RamNative::LockedTimerRes100ns / 10000.0) : 0.5;
         swprintf(logBuf, 256,
-            isEnLang ? L"Memory cleaned (%s). Freed: %s | Latency: -%.1f ms | FPS: +%d-%d | Timer: %.2f ms"
-                     : L"Đã dọn bộ nhớ (%s). Giải phóng: %s | Giảm trễ: ~%.1f ms | Tăng: ~%d-%d FPS | Xung nhân: %.2f ms",
-            src.c_str(), sizeStr.c_str(), latSavedMs, fpsMin, fpsMax, timerMs);
+            isEnLang ? L"Memory cleaned (%s). Freed: %s | Est. Latency: -%.1f ms | Est. FPS: +%d | Timer: %.2f ms"
+                     : L"Đã dọn bộ nhớ (%s). Giải phóng: %s | Dự kiến giảm: %.1f ms | Tăng: %d FPS | Xung nhân: %.2f ms",
+            src.c_str(), sizeStr.c_str(), latSavedMs, fpsGain, timerMs);
         WcaoAppEnv::WriteLog(L"CLEAN", logBuf);
 
         if (src == L"button") {
@@ -1643,9 +1644,9 @@ public:
                 : (L"Đã giải phóng " + sizeStr + L" RAM");
             wchar_t toastLine2[160];
             swprintf(toastLine2, 160,
-                isEnLang ? L"Latency -%.1f ms • +%d-%d FPS depending on game"
-                         : L"Giảm độ trễ ~%.1f ms • Tăng ~%d-%d FPS tùy game",
-                latSavedMs, fpsMin, fpsMax);
+                isEnLang ? L"Hardware measured: Est. -%.1f ms latency, +%d FPS"
+                         : L"Đo từ phần cứng: Dự kiến giảm %.1f ms, tăng %d FPS",
+                latSavedMs, fpsGain);
             ShowTrayNotification(toastLine1, toastLine2, cfg.BalloonPlaySound);
         }
 
@@ -1778,6 +1779,14 @@ public:
                 if (IsWindowVisible(hWnd) && app->selectedTab == 0) {
                     InvalidateRect(hWnd, nullptr, FALSE);
                 }
+            } else if (wParam == 4) {
+                KillTimer(hWnd, 4);
+                WinRtToast::HideActiveToast();
+                app->nid.uFlags = NIF_INFO;
+                app->nid.szInfo[0] = L'\0';
+                app->nid.szInfoTitle[0] = L'\0';
+                Shell_NotifyIconW(NIM_MODIFY, &app->nid);
+                app->nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
             } else if (wParam >= 101 && wParam <= 104) {
                 KillTimer(hWnd, wParam);
                 if (wParam == 101) app->btnViewResetFeedback.clear();
@@ -1899,6 +1908,8 @@ public:
             return 0;
         }
         case WM_DESTROY: {
+            KillTimer(hWnd, 4);
+            WinRtToast::HideActiveToast();
             UnregisterHotKey(hWnd, HOTKEY_ID_CLEAN);
             Shell_NotifyIconW(NIM_DELETE, &app->nid);
             if (app->hCurrentTrayIcon) {

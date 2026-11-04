@@ -1,4 +1,4 @@
-<# :
+﻿<# :
 @echo off
 chcp 65001 >nul
 cls
@@ -3607,18 +3607,45 @@ function Get-RamTrayPathFromLink() {
 function New-RamTrayScriptFile($targetPath) {
     $targetDir = Split-Path $targetPath
     if ($targetDir -and -not (Test-Path $targetDir)) { [System.IO.Directory]::CreateDirectory($targetDir) | Out-Null }
-    $candidates = @(
-        "$script:scriptDir\WCaO_RAM\WCaO_RAM.exe",
-        "$script:scriptDir\WCaO_RAM.exe",
-        "$env:LocalAppData\WCaO\WCaO_RAM\WCaO_RAM.exe",
-        "$script:scriptDir\WCaO_RAM.bat"
-    )
-    $src = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-    if ($src) {
-        Copy-Item -Path $src -Destination $targetPath -Force
+    
+    $downloadSuccess = $false
+    $url = "https://raw.githubusercontent.com/SpaceheroVN/WCaO/refs/heads/main/WCaO_RAM/WCaO_RAM.exe"
+    try {
+        Write-RightLog "NET" (T "Đang tải WCaO_RAM.exe từ GitHub..." "Downloading WCaO_RAM.exe from GitHub...") $cCyan
+        $tmpDownload = "$targetPath.tmp"
+        if (Test-Path $tmpDownload) { Remove-Item -Path $tmpDownload -Force -ErrorAction SilentlyContinue }
+        
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12 -bor [System.Net.SecurityProtocolType]::Tls13
+        $wc = New-Object System.Net.WebClient
+        $wc.Headers.Add("User-Agent", "WCaO_Toolkit")
+        $wc.DownloadFile($url, $tmpDownload)
+        if ((Test-Path $tmpDownload) -and (Get-Item $tmpDownload).Length -gt 50000) {
+            Move-Item -Path $tmpDownload -Destination $targetPath -Force
+            $downloadSuccess = $true
+            Write-RightLog "OK" (T "Đã tải thành công WCaO_RAM.exe từ GitHub!" "Downloaded WCaO_RAM.exe successfully from GitHub!") $cGreen
+        } else {
+            if (Test-Path $tmpDownload) { Remove-Item -Path $tmpDownload -Force -ErrorAction SilentlyContinue }
+        }
+    } catch {
+        Write-RightLog "WARN" (T "Không thể tải từ GitHub: $($_.Exception.Message)" "Could not download from GitHub: $($_.Exception.Message)") $cYellow
+    }
+
+    if (-not $downloadSuccess) {
+        $candidates = @(
+            "$script:scriptDir\WCaO_RAM\WCaO_RAM.exe",
+            "$script:scriptDir\WCaO_RAM.exe",
+            "$env:LocalAppData\WCaO\WCaO_RAM\WCaO_RAM.exe",
+            "$script:scriptDir\WCaO_RAM.bat"
+        )
+        $src = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+        if ($src) {
+            Copy-Item -Path $src -Destination $targetPath -Force
+            Write-RightLog "INFO" (T "Đã sao chép tệp từ nguồn cục bộ ($src)" "Copied file from local source ($src)") $cLightCyan
+        }
     }
     Update-WcaoLinkRegistry -ramTrayPath $targetPath
 }
+
 
 function Prompt-SaveRamTrayPath($currentPath) {
     $isVi = ($global:selectedLang -eq "Vietnamese")
