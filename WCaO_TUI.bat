@@ -6658,25 +6658,9 @@ function Invoke-ScreenPowerMenu() {
         if (-not $choice -or $choice -in @('Q', 'ESC') -or $script:lastActionEscPressed) { break }
 
         if ($choice -eq '1') {
-            Write-RightLog "DECLARED" (T "Màn hình sẽ tắt sau 2 giây (vui lòng thả chuột và phím)..." "Screen will turn off in 2 seconds (release mouse and keys)...") $cYellow
+            Write-RightLog "OUT" (T "Đang tắt màn hình ngay lập tức..." "Turning off screen immediately...") $cYellow
             Write-LeftConsole ""
-            Write-LeftConsole (T " [!] Màn hình sẽ tắt sau 2 giây..." " [!] Screen will turn off in 2 seconds...") $cYellow
-            Write-LeftConsole (T " [i] Bấm phím bất kỳ hoặc ESC để HỦY..." " [i] Press any key or ESC to CANCEL...") $cDim
-            $cancelled = $false
-            for ($cd = 20; $cd -gt 0; $cd--) {
-                if ([Console]::KeyAvailable) {
-                    $null = [Console]::ReadKey($true)
-                    $cancelled = $true
-                    break
-                }
-                Start-Sleep -Milliseconds 100
-            }
-            if ($cancelled) {
-                Write-LeftConsole (T " [OK] Đã hủy thao tác tắt màn hình." " [OK] Cancelled screen turn-off.") $cGreen
-                Write-RightLog "IN" (T "Người dùng đã hủy lệnh tắt màn hình." "User cancelled screen turn-off.") $cDim
-                Start-Sleep -Milliseconds 600
-                continue
-            }
+            Write-LeftConsole (T " [*] Đang tắt màn hình ngay lập tức..." " [*] Turning off screen immediately...") $cLightGreen
 
             if (-not $script:win32ScreenType) {
                 try {
@@ -6690,7 +6674,7 @@ function Invoke-ScreenPowerMenu() {
             }
 
             # Screen wakes up on user activity
-            Set-Activity "OK" (T "Đã tắt màn hình thành công" "Screen turned off successfully") $cGreen
+            Set-Activity "OK" (T "Đã tắt màn hình ngay lập tức" "Screen turned off immediately") $cGreen
             Write-RightLog "OUT" (T "Màn hình đã bật lại sau khi tắt" "Screen woke up after turn-off") $cGreen
         } elseif ($choice -eq '2') {
             Invoke-ScreenPowerShortcut

@@ -1,103 +1,102 @@
-*Read this in other languages: [English](README.md) | [Tiếng Việt](README-vi.md)*
+*Đọc tài liệu bằng ngôn ngữ khác: [English](README.md) | [Tiếng Việt](README-vi.md)*
 
-# 🚀 Windows Cleanup & Optimizer v6.2.0 - Ultimate Toolkit (WCaO) <a href="https://github.com/SpaceheroVN/Windows_Cleanup_And_Optimizer/releases/download/6.2.0/WCaO.bat"><img src="https://img.shields.io/badge/Download-brightgreen?style=flat&logo=download&logoColor=white" alt="Latest Release" width="85"></a>
+# 🚀 Windows Cleanup & Optimizer v6.3.2 - Phiên bản TUI (WCaO) <a href="https://raw.githubusercontent.com/SpaceheroVN/WCaO/refs/heads/main/WCaO_TUI.bat"><img src="https://img.shields.io/badge/Download-brightgreen?style=flat&logo=download&logoColor=white" alt="Tải về bản mới nhất" width="85"></a>
 
-![Version](https://img.shields.io/badge/version-v6.2.0-blue?style=plastic) ![Platform](https://img.shields.io/badge/platform-Windows-0078D6?style=plastic&logo=windows&logoColor=white) ![Language](https://img.shields.io/badge/language-Batch-4D4D4D?style=plastic&logo=windows-terminal&logoColor=white) ![License](https://img.shields.io/badge/license-Open%20Source-brightgreen?style=plastic&logo=opensource&logoColor=white) ![Admin](https://img.shields.io/badge/requires_Admin-Optional-yellow?style=plastic&logo=powershell&logoColor=white) ![Status](https://img.shields.io/badge/status-Active-success?style=plastic&logo=rocket&logoColor=white)
+![Phiên bản](https://img.shields.io/badge/version-v6.3.2_TUI-blue?style=plastic) ![Nền tảng](https://img.shields.io/badge/platform-Windows-0078D6?style=plastic&logo=windows&logoColor=white) ![Giao diện](https://img.shields.io/badge/interface-TUI_%C4%90i%E1%BB%81u_khi%E1%BB%83n_chu%E1%BB%99t-06b6d4?style=plastic&logo=windows-terminal&logoColor=white) ![Ngôn ngữ](https://img.shields.io/badge/language-Batch_%26_PowerShell-4D4D4D?style=plastic&logo=gnubash&logoColor=white) ![Giấy phép](https://img.shields.io/badge/license-Open%20Source-brightgreen?style=plastic&logo=opensource&logoColor=white) ![Quyền hạn](https://img.shields.io/badge/requires_Admin-T%C3%B9y_ch%E1%BB%8Dn-yellow?style=plastic&logo=powershell&logoColor=white) ![Trạng thái](https://img.shields.io/badge/status-Ho%E1%BA%A1t_%C4%91%E1%BB%99ng-success?style=plastic&logo=rocket&logoColor=white)
 
-Công cụ bảo trì hệ thống mã nguồn mở viết bằng Batch Script. Phiên bản v6.2.0 cung cấp tổng cộng **9 nhóm danh mục** với nhiều chức năng cụ thể giúp dọn dẹp, sửa lỗi và tối ưu hóa Windows. Nếu bạn thấy tôi cập nhật **README.md** đúng phiên bản **hiện tại** thì việc đó đồng nghĩa dự án ***đã tạm dừng vô thời hạn**...
+Bộ công cụ mã nguồn mở tối ưu và bảo trì hệ thống Windows toàn diện, không cần cài đặt bất kỳ thành phần ngoài nào, được trang bị giao diện **Terminal User Interface (TUI)** thế hệ mới. Phiên bản **v6.3.2** là bước nhảy vọt toàn diện so với các tệp lệnh dòng lệnh truyền thống: hỗ trợ tương tác chuột tự nhiên, bảng điều khiển hai cột trực quan và luồng nhật ký theo dõi thời gian thực.
+
+---
+
+## 🌟 Những Điểm Đột Phá Trên Phiên Bản TUI v6.3.2
+
+* **Tương tác chuột tự nhiên:** Di chuyển con trỏ, nhấp chọn danh mục, nhấp vào các nút trạng thái `[ BẬT ]` / `[ TẮT ]` / `[ CÓ ]` / `[ KHÔNG ]`, cuộn chuột và kéo thanh cuộn nhật ký trực tiếp trong cửa sổ dòng lệnh hoặc Windows Terminal mà không bị giới hạn chỉ dùng bàn phím.
+* **Bảng điều khiển hai cột chuyên nghiệp:**
+  * **Cột bên trái:** Khung danh mục điều hướng, thông số trạng thái hệ thống, nút điều khiển và hiệu ứng xoay khi tác vụ đang xử lý.
+  * **Cột bên phải:** Khung xuất nhật ký hoạt động theo màu sắc thời gian thực, có bộ nhớ đệm lịch sử và thanh cuộn kéo thả mượt mà.
+* **Khởi chạy thông minh không nháy màn hình:** Tự động chuyển tiếp mượt mà vào Windows Terminal hoặc cửa sổ dòng lệnh chuẩn với chế độ xử lý màu ảo và mã hóa ký tự UTF-8 hoàn chỉnh.
+* **Chuyển đổi ngôn ngữ tức thì:** Hỗ trợ song ngữ Tiếng Việt và Tiếng Anh, chuyển đổi ngay lập tức mà không cần khởi động lại ứng dụng.
+* **Cơ chế an toàn nhiều lớp:** Các can thiệp sâu vào nhân hệ thống được bảo vệ an toàn bởi chế độ chuyên gia và các bước xác thực quyền Quản trị viên.
 
 ---
 
 ## ⚠️ TUYÊN BỐ MIỄN TRỪ TRÁCH NHIỆM
 **BẰNG VIỆC SỬ DỤNG BỘ CÔNG CỤ NÀY, BẠN ĐỒNG Ý VỚI [ĐIỀU KHOẢN SỬ DỤNG](#dieu-khoan-su-dung).**
-Tác giả **KHÔNG chịu trách nhiệm** cho bất kỳ rủi ro mất dữ liệu hay hư hại hệ thống nào. **Hãy tự chịu rủi ro khi sử dụng.**
+Tác giả **KHÔNG chịu trách nhiệm** cho bất kỳ rủi ro mất mát dữ liệu, gián đoạn phần mềm hay hư hại hệ thống nào. **Hãy tự chịu trách nhiệm khi sử dụng.**
 
 ---
 
-## ⚙️ Chi Tiết Chức Năng
+## ⚙️ Cấu Trúc Các Nhóm Chức Năng
 
-Tool được chia thành 9 danh mục chính trên Menu, bao gồm các chức năng sau:
+Bộ công cụ TUI gom nhóm tất cả tiện ích hệ thống vào 9 danh mục trực quan:
 
-### 1. Quick Cleanup (Dọn dẹp nhanh)
-*Không yêu cầu quyền Admin.*
-* Xóa thư mục tạm của người dùng (`%temp%`) và lối tắt gần đây.
-* Xóa thư mục tạm của hệ thống (`%SystemRoot%\Temp`) và Prefetch *(nếu có Admin)*.
-* Xóa DNS Cache *(nếu có Admin)*.
-* Làm sạch hoàn toàn Thùng rác (Recycle Bin).
+### 1. Dọn Dẹp Nhanh
+*Phù hợp cho nhu cầu dọn rác định kỳ hàng tuần. Hoạt động an toàn ngay cả khi không có quyền Quản trị viên.*
+* Dọn dẹp toàn bộ tệp rác tạm thời của người dùng (`%TEMP%`) và lối tắt Recent.
+* Xóa tệp tạm hệ thống (`%SystemRoot%\Temp`) và bộ nhớ nạp trước Prefetch *(tự động tối ưu sâu hơn khi có quyền Quản trị viên)*.
+* Xóa sạch bộ nhớ đệm phân giải tên miền DNS (`ipconfig /flushdns`).
+* Làm sạch hoàn toàn Thùng rác hệ thống.
 
-### 2. Deep Cleanup (Dọn dẹp chuyên sâu)
-*Yêu cầu quyền Admin.*
-* **DISM /RestoreHealth:** Sửa chữa image hệ thống Windows.
-* **SFC /scannow:** Quét và phục hồi các tệp hệ thống bị hỏng.
-* **Disk Cleanup:** Quét và dọn dẹp ổ đĩa tự động.
+### 2. Dọn Dẹp Chuyên Sâu
+*Yêu cầu quyền Quản trị viên.*
+* **Sửa chữa kho thành phần Windows:** Chạy lệnh `DISM /Online /Cleanup-Image /RestoreHealth` khôi phục gói thành phần hệ điều hành bị hỏng.
+* **Kiểm tra và sửa lỗi tệp hệ thống:** Chạy lệnh `sfc /scannow` quét và tự động thay thế các tệp tin hệ thống bị lỗi hoặc thất lạc.
+* **Dọn dẹp ổ đĩa hệ thống:** Tự động quét và dọn sạch các bản cập nhật cũ cùng các tệp báo cáo lỗi hệ thống.
 
-### 3. System Optimization (Tối ưu hóa hệ thống)
-| Chức Năng | Tính năng cụ thể | Yêu cầu Admin |
+### 3. Tối Ưu Hóa Hệ Thống
+| Tính Năng | Mô tả chi tiết | Yêu cầu Quản trị viên |
 | :--- | :--- | :--- |
-| **Check Disk Integrity** | Quét lỗi ổ cứng (`chkdsk /scan`). | Có |
-| **Defrag / Trim Drive** | Chống phân mảnh hoặc tối ưu SSD. | Có |
-| **Rebuild Caches** | Làm mới icon, thumbnail và khởi động lại WSearch. | Không |
-| **Optimize Power Plan** | Thêm, xóa hoặc thiết lập các chế độ nguồn điện (Ultimate, High...). | Có |
-| **Optimize Visual Effects** | Bật/tắt hiệu ứng đồ họa để tăng hiệu suất. | Không |
-| **Win 11 Context Menu** | Chuyển đổi giữa Menu chuột phải kiểu Win 10 và Win 11 (Tự động khởi động lại Explorer để áp dụng). | Không |
-| **Edge Rounded Corners Fix** | Vá các lối tắt để tắt viền bo tròn ép buộc trên Edge v149+. | Không |
+| **Kiểm tra ổ cứng** | Quét bề mặt và lỗi phân vùng đĩa với lệnh `chkdsk /scan`. | Có |
+| **Chống phân mảnh và tối ưu SSD** | Tối ưu hóa phân mảnh ổ cứng cơ hoặc gửi lệnh TRIM tối ưu cho ổ SSD. | Có |
+| **Làm mới bộ nhớ đệm** | Khởi tạo lại bộ nhớ đệm biểu tượng IconCache, bộ nhớ ảnh thu nhỏ ThumbnailCache và khởi động lại dịch vụ Windows Search. | Không |
+| **Tối ưu chế độ nguồn điện** | Kích hoạt các gói hiệu năng cao như Ultimate Performance hoặc High Performance. | Có |
+| **Tối ưu hiệu ứng đồ họa** | Tinh chỉnh bật tắt các hiệu ứng cửa sổ giúp giao diện phản hồi nhanh hơn. | Không |
+| **Menu chuột phải Windows 11** | Chuyển đổi linh hoạt giữa menu cổ điển Windows 10 và menu mới Windows 11. | Không |
+| **Vá góc bo tròn trình duyệt Edge** | Tắt viền khung bo tròn ép buộc trên trình duyệt Microsoft Edge. | Không |
 
-### 4. Advanced Tools (Công cụ nâng cao)
-| Chức Năng | Tính năng cụ thể | Yêu cầu Expert Mode |
+### 4. Công Cụ Nâng Cao
+| Tính Năng | Mô tả chi tiết | Yêu cầu Chuyên gia |
 | :--- | :--- | :--- |
-| **Clear Update Cache** | Dọn dẹp cache của Windows Update. | Không |
-| **Uninstall Office Key** | Gỡ key bản quyền Office 2016. | Không |
-| **Remove Windows.old** | Xóa thư mục bản Win cũ sau khi nâng cấp. | **Có** |
-| **Manage Pagefile/Hibernation**| Tắt Pagefile hoặc chế độ ngủ đông (Hibernation). | **Có** |
-| **Network Reset & Flush DNS** | Đặt lại mạng và xóa bộ nhớ cache DNS. | Không |
-| **Create Restore Point** | Tạo điểm khôi phục hệ thống (Restore Point). | Không |
+| **Xóa bộ đệm cập nhật** | Xóa sạch thư mục tải về của Windows Update để khắc phục lỗi cập nhật bị treo. | Không |
+| **Tạo điểm khôi phục** | Tạo Điểm khôi phục nhanh chóng trước khi can thiệp sâu vào hệ thống. | Không |
+| **Quản lý RAM ảo và ngủ đông** | Tùy biến bộ nhớ ảo Pagefile hoặc tắt tính năng ngủ đông để giải phóng dung lượng ổ C. | **Có** |
+| **Xóa thư mục Windows cũ** | Dọn sạch thư mục sao lưu Windows.old sau khi nâng cấp phiên bản hệ điều hành. | **Có** |
+| **Đổi tên hàng loạt** | Công cụ đổi tên tệp và thư mục tốc độ cao theo quy tắc, hậu tố, đánh số thứ tự. | Không |
+| **Quản lý gói phần mềm Winget** | Tự động quét, cập nhật phần mềm hàng loạt và cài đặt các gói ứng dụng cần thiết. | Không |
 
-### 5. System Utilities (Tiện ích hệ thống)
-* Hiển thị thông tin hệ thống chi tiết (OS, CPU, RAM, GPU, Storage).
-* Khởi động lại Windows Explorer để sửa lỗi giao diện.
-* Tắt ép buộc (Kill) các ứng dụng đang bị treo (Not Responding).
-* **Check Windows License Key & Status:** Kiểm tra chi tiết trạng thái bản quyền (phát hiện key KMS/Volume rác), trích xuất key gốc từ BIOS/UEFI.
-* **Generate Battery Health Report:** Tự động tạo và mở báo cáo HTML chi tiết về tình trạng chai pin của thiết bị.
-* **Winget Power Tools:** * Cập nhật tất cả phần mềm tự động ẩn (Silent & Auto) hoặc chọn lọc theo App ID.
-  * Cài đặt phần mềm thiết yếu được chia theo danh mục cụ thể (Runtimes, Browsers, Media, Dev Tools, Utilities...).
-  * Sửa lỗi và đặt lại bộ nhớ cache của Winget (Reset Source).
+### 5. Tiện Ích Hệ Thống
+* **Thông tin phần cứng và bản quyền:** Tra cứu chi tiết cấu hình gồm hệ điều hành, vi xử lý, bộ nhớ RAM, card đồ họa, ổ lưu trữ và truy vấn khóa bản quyền gốc trong phần sụn BIOS/UEFI.
+* **Đóng ứng dụng bị treo:** Tắt nhanh tức thì các tiến trình đang ở trạng thái ngừng phản hồi.
+* **Trung tâm quản lý RAM:** Khu vực trung tâm điều khiển và quản lý tiến trình tối ưu RAM chạy nền.
+* **Khởi động lại Windows Explorer:** Nạp lại tiến trình `explorer.exe` nhanh chóng để khắc phục lỗi đơ thanh tác vụ hoặc màn hình đen.
+* **Trung tâm mạng và Wi-Fi:** Đặt lại danh mục Winsock, giao thức TCP/IP, làm mới địa chỉ IP và chẩn đoán kết nối mạng.
+* **Tắt màn hình nhanh:** Đưa màn hình vào chế độ nghỉ ngay lập tức hoặc tạo lối tắt tiện lợi ngoài màn hình chính.
 
-### 6. Screen & Power Tools (Công cụ màn hình & Nguồn)
-* Tắt màn hình ngay lập tức.
-* Tạo file script `Turn Off Screen.bat` ngoài Desktop để tắt màn hình nhanh.
+### 6. Bảo Trì Tự Động
+*Quy trình thực hiện tuần tự tự động chỉ với 1 cú nhấp chuột.*
+* Tự động chạy tuần tự: **Dọn dẹp nhanh** ➔ **Dọn dẹp chuyên sâu** ➔ **Xóa bộ đệm cập nhật Windows**.
+* Báo cáo tiến độ trực quan với biểu tượng xoay, tự động luân chuyển lưu trữ nhật ký trong 7 ngày.
 
-### 7. Quick Rename Pro (Đổi tên hàng loạt)
-Công cụ hỗ trợ kéo thả trực tiếp để đổi tên File và Folder số lượng lớn:
-* **File:** Xóa dấu ngoặc, đánh số thứ tự (1, 2, 3...), xóa hậu tố, hoặc tìm & thay thế chuỗi ký tự.
-* **Folder:** Xóa dấu ngoặc, xóa hậu tố.
-* **Fast Rename:** Đổi tên nhanh tương tác từng bước thủ công, hoặc đổi hàng loạt tự động dựa trên danh sách file `.txt` (Hỗ trợ cả File và Folder).
-* **Hoàn tác (Undo):** Hỗ trợ hoàn tác lại thao tác đổi tên gần nhất.
-
-### 8. Auto Maintenance (Bảo trì tự động)
-*Yêu cầu quyền Admin.*
-* Chạy tự động chuỗi tác vụ: Quick Cleanup -> Deep Cleanup -> Clear Windows Update Cache.
-
-### 9. Toolkit Options (Cài đặt & Nhật ký)
-* Bật/Tắt chế độ chuyên gia (**Expert Mode**) để hiển thị các tính năng nâng cao/nguy hiểm.
-* Trích xuất nhật ký hoạt động (Export Action Report).
+### 7. Cài Đặt Bộ Công Cụ
+* **Chế độ Chuyên gia:** Công tắc khóa hoặc mở an toàn các tính năng can thiệp hệ thống chuyên sâu.
+* **Chuyển đổi ngôn ngữ:** Đổi linh hoạt giữa Tiếng Việt và Tiếng Anh tức thì.
+* **Trích xuất báo cáo:** Lưu toàn bộ bản ghi lịch sử hoạt động ra tệp nhật ký trong thư mục dữ liệu ứng dụng.
 
 ---
 
 ## 🛠 Hướng Dẫn Sử Dụng
 
-1. **Tải xuống** tệp `WCaO.bat`.
-2. Khuyến nghị nhấp chuột phải và chọn **Run as administrator** để sử dụng được toàn bộ các tính năng.
-3. Gõ phím số tương ứng ở Menu (từ 0-9) và nhấn `Enter` để điều hướng.
-4. Đối với một số tính năng can thiệp sâu (Menu 4), bạn cần vào Menu `9` để bật **Expert Mode** trước khi sử dụng.
-5. Toàn bộ lịch sử dọn dẹp được tự động lưu tạm, bạn có thể xuất file Log tại Menu `9`.
+1. **Tải về:** Tải tệp [`WCaO_TUI.bat`](https://raw.githubusercontent.com/SpaceheroVN/WCaO/refs/heads/main/WCaO_TUI.bat) mới nhất về máy tính.
+2. **Khởi chạy:** 
+   * Nhấp đúp chuột để mở (tự động chuyển tiếp vào Windows Terminal nếu đã cài đặt).
+   * Khuyến khích nhấp chuột phải và chọn **Run as administrator** để sử dụng trọn vẹn mọi tính năng dọn dẹp chuyên sâu.
+3. **Thao tác:**
+   * Sử dụng chuột trực tiếp: nhấp vào các danh mục bên trái, nhấp các nút trạng thái `[ BẬT ]` / `[ TẮT ]` và kéo thanh cuộn.
+   * Hoặc dùng bàn phím với các phím mũi tên điều hướng, phím tắt số hoặc phím Enter / Esc.
 
 ---
 
-## Điều khoản sử dụng
-1. **Mục đích:** Chỉ dành cho nghiên cứu và học tập.
-2. **Trách nhiệm:** Tác giả không chịu trách nhiệm pháp lý cho mọi hư hỏng.
-3. **Cẩn trọng:** Hãy tạo **Restore Point** trước khi dùng.
-
-## Giấy phép
-Giấy phép MIT - Bản quyền (c) 2026 thuộc về SpaceheroVN.
-Dự án này được cấp phép theo Giấy phép MIT - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
+## 📜 Điều Khoản Sử Dụng
+1. **Mục đích sử dụng:** Công cụ được phát triển phục vụ mục đích bảo trì hệ thống cá nhân và nghiên cứu học tập.
+2. **Miễn trừ trách nhiệm:** Tác giả không chịu trách nhiệm đối với các sự cố phần cứng hoặc phần mềm do thao tác sai mục đích.
+3. **Biện pháp cẩn trọng:** Luôn chủ động tạo **Điểm khôi phục hệ thống** trước khi kích hoạt các tính năng chuyên gia.
