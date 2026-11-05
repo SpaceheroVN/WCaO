@@ -1,4 +1,4 @@
-<# :
+﻿<# :
 @echo off
 chcp 65001 >nul
 cls
@@ -589,11 +589,159 @@ $global:currentProgressMsg = $null
 # ===============================================================================
 #  ZONE 3: CORE UTILITIES & UNIFIED LOGGING SYSTEM
 # ===============================================================================
-# --- [3.1] Localization (T) ---
+# --- [3.1] Localization (T) & Universal Translation Layer ---
+$global:transMap = [System.Collections.Generic.Dictionary[string, string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+function Register-Translation($vi, $en) {
+    if ([string]::IsNullOrWhiteSpace($vi) -or [string]::IsNullOrWhiteSpace($en)) { return }
+    $cleanVi = $script:AnsiRegex.Replace($vi, "").Trim()
+    $cleanEn = $script:AnsiRegex.Replace($en, "").Trim()
+    if ($cleanVi -and $cleanEn) {
+        $global:transMap[$cleanVi] = $cleanEn
+        $global:transMap[$cleanEn] = $cleanVi
+    }
+    $plainVi = $script:AnsiRegex.Replace($vi, "")
+    $plainEn = $script:AnsiRegex.Replace($en, "")
+    if ($plainVi -and $plainEn) {
+        $global:transMap[$plainVi] = $plainEn
+        $global:transMap[$plainEn] = $plainVi
+    }
+}
+
 function T($viText, $enText) {
+    if ($viText -and $enText) {
+        Register-Translation $viText $enText
+    }
     if ($global:selectedLang -eq "Vietnamese") { return $viText } else { return $enText }
 }
 
+function Get-TranslatedString($text, $targetLang) {
+    if ([string]::IsNullOrEmpty($text)) { return $text }
+    $plain = $script:AnsiRegex.Replace($text, "")
+    $trimmed = $plain.Trim()
+    if ($global:transMap.ContainsKey($plain)) {
+        return $global:transMap[$plain]
+    }
+    if ($global:transMap.ContainsKey($trimmed)) {
+        $trans = $global:transMap[$trimmed]
+        if ($plain -match '^(\s+)') { return $matches[1] + $trans }
+        return $trans
+    }
+    if ($trimmed.EndsWith(':')) {
+        $noColon = $trimmed.Substring(0, $trimmed.Length - 1).Trim()
+        if ($global:transMap.ContainsKey($noColon)) {
+            $trans = $global:transMap[$noColon] + ":"
+            if ($plain -match '^(\s+)') { return $matches[1] + $trans }
+            return $trans
+        }
+    }
+    if (($trimmed.StartsWith("[") -and $trimmed.Contains("]")) -or ($trimmed.StartsWith("(") -and $trimmed.Contains(")"))) {
+        $cClose = if ($trimmed.StartsWith("[")) { "]" } else { ")" }
+        $cIdx = $trimmed.IndexOf($cClose)
+        $prefix = $trimmed.Substring(0, $cIdx + 1)
+        $rest = $trimmed.Substring($cIdx + 1).Trim()
+        if ($global:transMap.ContainsKey($rest)) {
+            $trans = $prefix + " " + $global:transMap[$rest]
+            if ($plain -match '^(\s+)') { return $matches[1] + $trans }
+            return $trans
+        }
+        if ($rest.EndsWith(':')) {
+            $restNoColon = $rest.Substring(0, $rest.Length - 1).Trim()
+            if ($global:transMap.ContainsKey($restNoColon)) {
+                $trans = $prefix + " " + $global:transMap[$restNoColon] + ":"
+                if ($plain -match '^(\s+)') { return $matches[1] + $trans }
+                return $trans
+            }
+        }
+        if ($rest -match '^(Running|Đang chạy):\s*(.*)$') {
+            $actWord = if ($targetLang -eq "Vietnamese") { "Đang chạy: " } else { "Running: " }
+            $actionName = $matches[2]
+            $transAct = Get-TranslatedString $actionName $targetLang
+            $trans = $prefix + " " + $actWord + $transAct
+            if ($plain -match '^(\s+)') { return $matches[1] + $trans }
+            return $trans
+        }
+        if ($rest -match '^(Done|Hoàn thành):\s*(.*)$') {
+            $actWord = if ($targetLang -eq "Vietnamese") { "Hoàn thành: " } else { "Done: " }
+            $actionName = $matches[2]
+            $transAct = Get-TranslatedString $actionName $targetLang
+            $trans = $prefix + " " + $actWord + $transAct
+            if ($plain -match '^(\s+)') { return $matches[1] + $trans }
+            return $trans
+        }
+    }
+    return $text
+}
+function Initialize-DefaultTranslations() {
+    # Auto-index ALL static T("...", "...") translation pairs from script file (500+ pairs)
+    try {
+        $targetFile = if ($global:WCAO_BAT_PATH -and (Test-Path $global:WCAO_BAT_PATH)) {
+            $global:WCAO_BAT_PATH
+        } elseif ($env:WCAO_BAT_PATH -and (Test-Path $env:WCAO_BAT_PATH)) {
+            $env:WCAO_BAT_PATH
+        } elseif ($script:scriptDir -and (Test-Path "$script:scriptDir\WCaO_TUI.bat")) {
+            "$script:scriptDir\WCaO_TUI.bat"
+        } elseif (Test-Path "$PSScriptRoot\WCaO_TUI.bat") {
+            "$PSScriptRoot\WCaO_TUI.bat"
+        } else {
+            "c:\Users\Space\OneDrive\Documents\Command\WCaO_TUI.bat"
+        }
+        if ($targetFile -and (Test-Path $targetFile)) {
+            $rawCode = [System.IO.File]::ReadAllText($targetFile, [System.Text.Encoding]::UTF8)
+            $rgxT = [regex]'T\s+("([^"]+)"|''([^'']+)''|\$([a-zA-Z0-9_:]+))\s+("([^"]+)"|''([^'']+)''|\$([a-zA-Z0-9_:]+))'
+            foreach ($m in $rgxT.Matches($rawCode)) {
+                $vi = if ($m.Groups[2].Success) { $m.Groups[2].Value } elseif ($m.Groups[3].Success) { $m.Groups[3].Value } else { $null }
+                $en = if ($m.Groups[6].Success) { $m.Groups[6].Value } elseif ($m.Groups[7].Success) { $m.Groups[7].Value } else { $null }
+                if ($vi -and $en -and $vi -ne $en -and -not $vi.Contains('$') -and -not $en.Contains('$')) {
+                    Register-Translation $vi $en
+                }
+            }
+        }
+    } catch {}
+
+    # Common UI and Confirmation buttons
+    Register-Translation "[  Có   ]" "[  Yes  ]"
+    Register-Translation "[ Không ]" "[  No  ]"
+    Register-Translation "Trở về" "Back"
+    Register-Translation "Thoát" "Exit"
+    Register-Translation "Ổ đĩa" "Drive"
+    Register-Translation "Quản trị" "Admin"
+    Register-Translation "Chuyên gia" "Expert Mode"
+    Register-Translation "Hoạt động" "Activity"
+    Register-Translation "BẬT" "ON"
+    Register-Translation "TẮT" "OFF"
+    Register-Translation "CÓ" "YES"
+    Register-Translation "KHÔNG" "NO"
+    Register-Translation "MENU CHÍNH" "MAIN MENU"
+    Register-Translation "CÔNG CỤ NÂNG CAO" "ADVANCED TOOLS"
+    Register-Translation "TỐI ƯU HỆ THỐNG" "SYSTEM OPTIMIZATION"
+    Register-Translation "TIỆN ÍCH HỆ THỐNG" "SYSTEM UTILITIES"
+    Register-Translation "DỌN DẸP HỆ THỐNG" "SYSTEM CLEANUP"
+    Register-Translation "DỌN DẸP NHANH" "QUICK CLEANUP"
+    Register-Translation "KIỂM TRA TÍNH TOÀN VẸN Ổ ĐĨA" "CHECK DISK INTEGRITY"
+    Register-Translation "CHỐNG PHÂN MẢNH & TỐI ƯU Ổ" "DEFRAG / TRIM DRIVE"
+    Register-Translation "TỐI ƯU CẤU HÌNH NGUỒN" "OPTIMIZE POWER PLAN"
+    Register-Translation "DỌN BỘ ĐỆM BIỂU TƯỢNG" "REBUILD SYSTEM CACHES"
+    Register-Translation "HIỆU ỨNG HÌNH ẢNH" "VISUAL EFFECTS"
+    Register-Translation "MENU CHUỘT PHẢI WINDOWS 11" "WINDOWS 11 CONTEXT MENU"
+    Register-Translation "GHI ĐÈ DUNG LƯỢNG TRỐNG" "WIPE FREE SPACE"
+    Register-Translation "TẠO ĐIỂM KHÔI PHỤC HỆ THỐNG" "CREATE RESTORE POINT"
+    Register-Translation "XÓA THƯ MỤC WINDOWS.OLD" "REMOVE WINDOWS.OLD"
+    Register-Translation "QUẢN LÝ PHÂN VÙNG ẢO & NGỦ ĐÔNG" "PAGEFILE & HIBERNATION"
+    Register-Translation "SỬA LỖI BO VIỀN EDGE" "EDGE ROUNDED CORNERS FIX"
+    Register-Translation "DỌN DẸP CHUYÊN SÂU" "DEEP CLEANUP"
+    Register-Translation "TẮT TÁC VỤ BỊ TREO/ĐƠ" "KILL FROZEN TASKS"
+    Register-Translation "KHỞI ĐỘNG EXPLORER" "RESTART EXPLORER"
+    Register-Translation "TẮT MÀN HÌNH" "TURN OFF SCREEN"
+    Register-Translation "MẠNG & WI-FI" "NETWORK & WI-FI"
+    Register-Translation "HỆ THỐNG & BẢN QUYỀN" "SYSTEM & LICENSE INFO"
+    Register-Translation "ĐỔI TÊN HÀNG LOẠT" "QUICK RENAME"
+    Register-Translation "QUẢN LÝ RAM" "RAM MANAGEMENT"
+    Register-Translation "CÔNG CỤ WINGET" "WINGET POWER TOOLS"
+    Register-Translation "TỰ ĐỘNG BẢO TRÌ HỆ THỐNG" "AUTO MAINTENANCE"
+    Register-Translation "Đường dẫn thư mục" "Folder path"
+}
+Initialize-DefaultTranslations
 # --- [3.2] Format Helpers ---
 function Format-BytesAuto($b) {
     if ($b -lt 1KB) {
@@ -1712,7 +1860,7 @@ function Redraw-CurrentActionBox() {
     $actTitle = if ($global:currentActionTitleVi -and $global:currentActionTitleEn) {
         if ($isVi) { $global:currentActionTitleVi } else { $global:currentActionTitleEn }
     } elseif ($global:currentActionName) {
-        $global:currentActionName
+        Get-TranslatedString $global:currentActionName (if ($isVi) { "Vietnamese" } else { "English" })
     } else {
         ""
     }
@@ -1722,15 +1870,25 @@ function Redraw-CurrentActionBox() {
         $boxTitle = if ($actTitle.Length -gt $maxTitleLen) { $actTitle.Substring(0, $maxTitleLen - 2) + ".." } else { $actTitle }
         Draw-Box 0 3 43 $leftH $boxTitle $global:currentActionBorderColor
         Show-LeftBackButton
-        Set-Activity "RUN" (T "Đang chạy: $actTitle" "Running: $actTitle") $cYellow
+        $statusVi = if ($global:currentActionTitleVi) { $global:currentActionTitleVi } else { $actTitle }
+        $statusEn = if ($global:currentActionTitleEn) { $global:currentActionTitleEn } else { $actTitle }
+        if (Test-IsAnyTaskRunning -or ($global:activityStatus -and $global:activityStatus.StartsWith("[RUN]"))) {
+            $statusMsg = if ($isVi) { "Đang chạy: $statusVi" } else { "Running: $statusEn" }
+            Set-Activity "RUN" $statusMsg $cYellow
+        }
     }
 }
+
+$global:leftActionItems = [System.Collections.Generic.List[PSCustomObject]]::new()
+$global:currentYesNoLineIdx = -1
 
 function Start-ActionView($title, $borderColor = $cCyan, $titleEn = $null) {
     $script:stopRequested = $false
     $script:lastTaskCancelled = $false
     $script:isTaskRunning = $false
     $leftConsoleLines.Clear()
+    $global:leftActionItems.Clear()
+    $global:currentYesNoLineIdx = -1
     Clear-LeftPane
     Get-TermSize
     $leftH = [math]::Max(5, $script:termH - 4)
@@ -1742,6 +1900,12 @@ function Start-ActionView($title, $borderColor = $cCyan, $titleEn = $null) {
     $global:currentActionBorderColor = $borderColor
     $global:currentProgressMsg = $null
 
+    if ($cleanTitle -and $cleanEn) {
+        Register-Translation $cleanTitle $cleanEn
+        Register-Translation "Đang chạy: $cleanTitle" "Running: $cleanEn"
+        Register-Translation "Hoàn thành: $cleanTitle" "Done: $cleanEn"
+    }
+
     $isVi = ($global:selectedLang -eq "Vietnamese")
     $displayTitle = if ($isVi) { $global:currentActionTitleVi } else { $global:currentActionTitleEn }
     $global:currentActionName = $displayTitle
@@ -1749,7 +1913,8 @@ function Start-ActionView($title, $borderColor = $cCyan, $titleEn = $null) {
     $boxTitle = if ($displayTitle.Length -gt $maxTitleLen) { $displayTitle.Substring(0, $maxTitleLen - 2) + ".." } else { $displayTitle }
     Draw-Box 0 3 43 $leftH $boxTitle $borderColor
 
-    Set-Activity "RUN" (T "Đang chạy: $displayTitle" "Running: $displayTitle") $cYellow
+    $statusMsg = if ($isVi) { "Đang chạy: $cleanTitle" } else { "Running: $cleanEn" }
+    Set-Activity "RUN" $statusMsg $cYellow
     Draw-StatusPane
     Draw-FooterBar
 }
@@ -1790,7 +1955,7 @@ function Add-LeftConsoleLineRaw($formattedLine) {
     }
 }
 
-function Write-LeftConsole($msg, $color = $cWhite) {
+function Render-LeftConsoleLines($msg, $color = $cWhite) {
     Get-TermSize
     $maxW = 38
     if ([string]::IsNullOrEmpty($msg)) {
@@ -1866,22 +2031,76 @@ function Write-LeftConsole($msg, $color = $cWhite) {
     }
 }
 
+function Write-LeftConsole($msg, $color = $cWhite) {
+    if ([string]::IsNullOrEmpty($msg)) {
+        $global:leftActionItems.Add([PSCustomObject]@{ Type = 'Blank'; TextVi = ''; TextEn = ''; Color = $color })
+        Add-LeftConsoleLineRaw "$color$cReset"
+        return
+    }
+
+    $cleanPlain = $script:AnsiRegex.Replace($msg, "")
+    $targetLang = if ($global:selectedLang -eq "Vietnamese") { "English" } else { "Vietnamese"}
+    $trans = Get-TranslatedString $cleanPlain $targetLang
+    $tVi = if ($global:selectedLang -eq "Vietnamese") { $cleanPlain } else { $trans }
+    $tEn = if ($global:selectedLang -eq "Vietnamese") { $trans } else { $cleanPlain }
+
+    $global:leftActionItems.Add([PSCustomObject]@{
+        Type   = 'Msg'
+        TextVi = $tVi
+        TextEn = $tEn
+        Color  = $color
+    })
+    Render-LeftConsoleLines $msg $color
+}
+
 function Update-LeftConsoleLine($msg, $color = $cWhite) {
     $global:currentProgressMsg = $null
     Get-TermSize
-    if ($msg.Length -gt 38) {
-        $msg = $msg.Substring(0, 35) + "..."
+    if ($global:leftActionItems.Count -gt 0) {
+        $global:leftActionItems.RemoveAt($global:leftActionItems.Count - 1)
     }
     if ($leftConsoleLines.Count -gt 0) {
         $lastIdx = $leftConsoleLines.Count - 1
-        $leftConsoleLines[$lastIdx] = "$color$msg$cReset"
         $targetY = 5 + $lastIdx
         Set-CursorPos 2 $targetY
-        $pad = [math]::Max(0, 39 - $msg.Length)
-        Write-Host "$color$msg$cReset$(' ' * $pad)" -NoNewline
-    } else {
-        Add-LeftConsoleLineRaw "$color$msg$cReset"
+        Write-Host (" " * 39) -NoNewline
+        $leftConsoleLines.RemoveAt($lastIdx)
     }
+    Write-LeftConsole $msg $color
+}
+
+function Redraw-CurrentActionLines() {
+    if (-not $global:currentActionName -and -not $global:currentActionBorderColor) { return }
+    Clear-LeftPane
+    $leftConsoleLines.Clear()
+    $isVi = ($global:selectedLang -eq "Vietnamese")
+
+    $itemsCopy = @($global:leftActionItems)
+    $global:leftActionItems.Clear()
+    $global:currentYesNoLineIdx = -1
+
+    foreach ($item in $itemsCopy) {
+        if ($item.Type -eq 'Blank') {
+            $global:leftActionItems.Add($item)
+            Add-LeftConsoleLineRaw "$($item.Color)$cReset"
+                } elseif ($item.Type -eq 'YesNo') {
+            $btnYesTxt = if ($isVi) { "[  Có   ]" } else { "[  Yes  ]" }
+            $btnNoTxt  = if ($isVi) { "[ Không ]" } else { "[  No  ]" }
+            $global:currentYesNoLineIdx = $leftConsoleLines.Count
+            $global:leftActionItems.Add($item)
+            Add-LeftConsoleLineRaw "       $cGreen$btnYesTxt$cReset        $cRed$btnNoTxt$cReset"
+        } elseif ($item.Type -eq 'Input') {
+            $global:leftActionItems.Add($item)
+            Add-LeftConsoleLineRaw "$cWhite> $cReset"
+        } else {
+            $txt = if ($isVi) { $item.TextVi } else { $item.TextEn }
+            $global:leftActionItems.Add($item)
+            Render-LeftConsoleLines $txt $item.Color
+        }
+    }
+
+    Show-LeftBackButton
+    Draw-FooterBar
 }
 
 function Write-LeftConsoleProgress($msg, $color = $cYellow) {
@@ -2006,15 +2225,10 @@ function Wait-LeftReturn() {
                 $script:termSizeDirty = $true
                 Get-TermSize -force
                 Draw-FullLayout
-                Clear-LeftPane
-                for ($l = 0; $l -lt $leftConsoleLines.Count; $l++) {
-                    Set-CursorPos 2 (5 + $l)
-                    [Console]::Write($leftConsoleLines[$l])
-                }
-                Show-LeftBackButton
+                Redraw-CurrentActionBox
+                Redraw-CurrentActionLines
                 continue
             }
-
             if ($rec.EventType -eq 1 -and $rec.KeyEvent.bKeyDown -ne 0) {
                 $vk = $rec.KeyEvent.wVirtualKeyCode
                 if ($vk -in @(0x1B, 0x08, 0x0D, 0x20)) {
@@ -2064,13 +2278,16 @@ function Wait-LeftReturn() {
                         $waiting = $false
                         break
                     }
+                    if ($res -eq "LANG_CHANGED") {
+                        continue
+                    }
                 } elseif (-not $isLeftDown) {
                     $script:wasLeftDown = $false
                 }
             }
         }
     }
-    $leftConsoleLines.Clear()
+    $leftConsoleLines.Clear(); $global:leftActionItems.Clear(); $global:currentYesNoLineIdx = -1
     $global:currentActionName = $null
     $global:currentActionBorderColor = $null
     Update-IdleActivity
@@ -2215,7 +2432,9 @@ function Draw-ActivityLine() {
     $rightW = [math]::Max(10, $script:termW - 45)
     $isVi = ($global:selectedLang -eq "Vietnamese")
     $actLabel = if ($isVi) { " Hoạt động: " } else { " Activity: " }
-    $actText = $global:activityStatus
+    $targetLang = if ($isVi) { "Vietnamese" } else { "English" }
+    $actText = Get-TranslatedString $global:activityStatus $targetLang
+    $global:activityStatus = $actText
 
     $isProcRunning = Test-IsAnyTaskRunning
     $stopTag = if ($isVi) { "[HỦY]" } else { "[CANCEL]" }
@@ -2546,6 +2765,7 @@ function Handle-GlobalClick($posX, $posY) {
                 Draw-FullLayout
             } else {
                 Redraw-CurrentActionBox
+                Redraw-CurrentActionLines
                 Draw-TopMenuBar
                 Draw-StatusPane
                 Draw-FooterBar
@@ -2562,6 +2782,7 @@ function Handle-GlobalClick($posX, $posY) {
                 Draw-FullLayout
             } else {
                 Redraw-CurrentActionBox
+                Redraw-CurrentActionLines
                 Draw-TopMenuBar
                 Draw-StatusPane
                 Draw-FooterBar
@@ -2698,6 +2919,7 @@ function Get-LeftInput($prompt, $initialValue = "") {
     Show-LeftBackButton
     Draw-FooterBar
 
+    $global:leftActionItems.Add([PSCustomObject]@{ Type = 'Input'; Color = $cWhite; TextVi = ''; TextEn = '' })
     Add-LeftConsoleLineRaw "$cWhite> $cReset"
     $inputBuffer = if ($initialValue) { [string]$initialValue } else { "" }
     $cursorPos = $inputBuffer.Length
@@ -3000,7 +3222,10 @@ function Get-LeftInput($prompt, $initialValue = "") {
                         break
                     }
                     if ($target.StartsWith("TOP_") -or $target.StartsWith("LANG_") -or $target.StartsWith("LOG_") -or $target.StartsWith("STATUS_")) {
-                        Handle-GlobalClick $posX $posY | Out-Null
+                        $res = Handle-GlobalClick $posX $posY
+                        if ($res -eq "LANG_CHANGED") {
+                            Render-InputLine
+                        }
                     }
                 }
 
@@ -3038,15 +3263,15 @@ function Get-LeftInput($prompt, $initialValue = "") {
 
 function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
     $isYesNo = ($validKeys.Count -eq 2 -and 'Y' -in $validKeys -and 'N' -in $validKeys)
-    $yesNoLineIdx = -1
+    $global:currentYesNoLineIdx = -1
     if ($prompt) {
         if ($isYesNo) {
             $btnYesTxt = if ($global:selectedLang -eq "Vietnamese") { "[  Có   ]" } else { "[  Yes  ]" }
             $btnNoTxt  = if ($global:selectedLang -eq "Vietnamese") { "[ Không ]" } else { "[  No  ]" }
             Write-LeftConsole "$prompt" $cYellow
             Write-LeftConsole ""
-            $yesNoLineIdx = $leftConsoleLines.Count
-            Write-LeftConsole "       $cGreen$btnYesTxt$cReset        $cRed$btnNoTxt$cReset"
+            $global:currentYesNoLineIdx = $leftConsoleLines.Count
+            $global:leftActionItems.Add([PSCustomObject]@{ Type = 'YesNo'; Color = $cWhite; TextVi = ''; TextEn = '' })
         } else {
             Write-LeftConsole "$prompt ($($validKeys -join '/')): " $cYellow
         }
@@ -3192,7 +3417,7 @@ function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
                             $origL = $leftConsoleLines[$lIdx]
                             $plainL = $script:AnsiRegex.Replace($origL, "")
                             $rawL = $plainL.Trim()
-                            if ($isYesNo -and $lIdx -eq $yesNoLineIdx) {
+                            if ($isYesNo -and $lIdx -eq $global:currentYesNoLineIdx) {
                                 $btnNoLen = if ($global:selectedLang -eq "Vietnamese") { 9 } else { 8 }
                                 if ($posX -ge 9 -and $posX -le 17) {
                                     $curHoverLine = $lIdx
@@ -3231,7 +3456,7 @@ function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
                     if ($curHoverLine -ne $lastHoverLine -or $curHoverSub -ne $lastHoverSub) {
                         if ($lastHoverLine -ge 0 -and $lastHoverLine -lt $leftConsoleLines.Count) {
                             Set-CursorPos 2 (5 + $lastHoverLine)
-                            if ($isYesNo -and $lastHoverLine -eq $yesNoLineIdx) {
+                            if ($isYesNo -and $lastHoverLine -eq $global:currentYesNoLineIdx) {
                                 $bYes = if ($global:selectedLang -eq "Vietnamese") { "[  Có   ]" } else { "[  Yes  ]" }
                                 $bNo  = if ($global:selectedLang -eq "Vietnamese") { "[ Không ]" } else { "[  No  ]" }
                                 Write-Host "       $cGreen$bYes$cReset        $cRed$bNo$cReset       " -NoNewline
@@ -3245,12 +3470,12 @@ function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
                         if ($curHoverLine -ge 0 -and $curHoverLine -lt $leftConsoleLines.Count) {
                             $curOrig = $leftConsoleLines[$curHoverLine]
                             $curPlain = $script:AnsiRegex.Replace($curOrig, "")
-                            if ($isYesNo -and $curHoverLine -eq $yesNoLineIdx) {
+                            if ($isYesNo -and $curHoverLine -eq $global:currentYesNoLineIdx) {
                                 $bYes = if ($global:selectedLang -eq "Vietnamese") { "[  Có   ]" } else { "[  Yes  ]" }
                                 $bNo  = if ($global:selectedLang -eq "Vietnamese") { "[ Không ]" } else { "[  No  ]" }
                                 $yesPart = if ($curHoverSub -eq 1) { "$ESC[48;2;40;140;40m$ESC[38;2;255;255;255m$bYes$cReset" } else { "$cGreen$bYes$cReset" }
                                 $noPart  = if ($curHoverSub -eq 2) { "$ESC[48;2;200;40;40m$ESC[38;2;255;255;255m$bNo$cReset" } else { "$cRed$bNo$cReset" }
-                                Set-CursorPos 2 (5 + $yesNoLineIdx)
+                                Set-CursorPos 2 (5 + $global:currentYesNoLineIdx)
                                 Write-Host "       $yesPart        $noPart       " -NoNewline
                             } elseif ($validKeys -contains "RAM_STATUS") {
                                 if ($curHoverSub -gt 0) {
@@ -3295,7 +3520,7 @@ function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
                         if ($posY -ge 5) {
                             $lineIdx = $posY - 5
                             if ($lineIdx -ge 0 -and $lineIdx -lt $leftConsoleLines.Count) {
-                                if ($isYesNo -and $lineIdx -eq $yesNoLineIdx) {
+                                if ($isYesNo -and $lineIdx -eq $global:currentYesNoLineIdx) {
                                     $btnNoLen = if ($global:selectedLang -eq "Vietnamese") { 9 } else { 8 }
                                     if ($posX -ge 9 -and $posX -le 17) {
                                         Lock-Input 300
@@ -3366,6 +3591,13 @@ function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
                                 Lock-Input 300
                                 return $null
                             }
+                            if ($res -eq "LANG_CHANGED") {
+                                if ($validKeys -contains "LANG_CHANGED") {
+                                    Lock-Input 300
+                                    return "LANG_CHANGED"
+                                }
+                                continue
+                            }
                         }
                     } elseif (-not $isLeftDown) {
                         $script:wasLeftDown = $false
@@ -3376,7 +3608,7 @@ function Wait-SingleKey($prompt, $validKeys = @('Y','N'), $timeoutMs = 0) {
     } finally {
         if (-not $isTimingOut -and $lastHoverLine -ge 0 -and $lastHoverLine -lt $leftConsoleLines.Count) {
             Set-CursorPos 2 (5 + $lastHoverLine)
-            if ($isYesNo -and $lastHoverLine -eq $yesNoLineIdx) {
+            if ($isYesNo -and $lastHoverLine -eq $global:currentYesNoLineIdx) {
                 $bYes = if ($global:selectedLang -eq "Vietnamese") { "[  Có   ]" } else { "[  Yes  ]" }
                 $bNo  = if ($global:selectedLang -eq "Vietnamese") { "[ Không ]" } else { "[  No  ]" }
                 Write-Host "       $cGreen$bYes$cReset        $cRed$bNo$cReset       " -NoNewline
@@ -3660,7 +3892,7 @@ function Invoke-QuickClean($autoMode = $false) {
 
         Invoke-ScriptWithSpinner { Remove-Item "$env:TEMP\*" -Recurse -Force -EA SilentlyContinue } $msgTempIn $cYellow
 
-        $msgTempOk = if ($isVi) { " [OK] Đã dọn thư mục Temp người dùng." } else { " [OK] User Temp folder cleared." }
+        $msgTempOk = T " [OK] Đã dọn thư mục Temp người dùng." " [OK] User Temp folder cleared."
         Update-LeftConsoleLine $msgTempOk $cGreen
         Write-RightLog "OUT" (T "Đã dọn sạch User Temp (%TEMP%)" "Cleared User Temp (%TEMP%)") $cGreen
     }
@@ -3672,7 +3904,7 @@ function Invoke-QuickClean($autoMode = $false) {
 
         Invoke-ScriptWithSpinner { Remove-Item "$env:APPDATA\Microsoft\Windows\Recent\*" -Recurse -Force -EA SilentlyContinue } $msgRecIn $cYellow
 
-        $msgRecOk = if ($isVi) { " [OK] Đã dọn lối tắt gần đây." } else { " [OK] Recent shortcuts cleared." }
+        $msgRecOk = T " [OK] Đã dọn lối tắt gần đây." " [OK] Recent shortcuts cleared."
         Update-LeftConsoleLine $msgRecOk $cGreen
         Write-RightLog "OUT" (T "Đã dọn sạch lối tắt gần đây" "Cleared shortcuts in Recent folder") $cGreen
     }
@@ -3684,7 +3916,7 @@ function Invoke-QuickClean($autoMode = $false) {
 
             Invoke-ScriptWithSpinner { Remove-Item "$env:SystemRoot\Temp\*" -Recurse -Force -EA SilentlyContinue } $msgSysTempIn $cYellow
 
-            $msgSysTempOk = if ($isVi) { " [OK] Đã dọn thư mục System Temp." } else { " [OK] System Temp folder cleared." }
+            $msgSysTempOk = T " [OK] Đã dọn thư mục System Temp." " [OK] System Temp folder cleared."
             Update-LeftConsoleLine $msgSysTempOk $cGreen
             Write-RightLog "OUT" (T "Đã dọn sạch Temp hệ thống" "Cleared System Temp") $cGreen
         }
@@ -3695,7 +3927,7 @@ function Invoke-QuickClean($autoMode = $false) {
 
             Invoke-ScriptWithSpinner { Remove-Item "$env:SystemRoot\Prefetch\*" -Recurse -Force -EA SilentlyContinue } $msgPrefIn $cYellow
 
-            $msgPrefOk = if ($isVi) { " [OK] Đã dọn thư mục Prefetch." } else { " [OK] Prefetch folder cleared." }
+            $msgPrefOk = T " [OK] Đã dọn thư mục Prefetch." " [OK] Prefetch folder cleared."
             Update-LeftConsoleLine $msgPrefOk $cGreen
             Write-RightLog "OUT" (T "Đã dọn sạch Prefetch" "Cleared Prefetch") $cGreen
         }
@@ -3703,10 +3935,10 @@ function Invoke-QuickClean($autoMode = $false) {
         $msgDnsIn = if ($isVi) { "Đang xóa bộ đệm DNS..." } else { "Flushing DNS Cache..." }
         Write-LeftConsoleProgress $msgDnsIn $cYellow
         Run-And-LogCommand "ipconfig" "/flushdns" | Out-Null
-        $msgDnsOk = if ($isVi) { " [OK] Đã xóa bộ đệm DNS." } else { " [OK] DNS Cache flushed." }
+        $msgDnsOk = T " [OK] Đã xóa bộ đệm DNS." " [OK] DNS Cache flushed."
         Update-LeftConsoleLine $msgDnsOk $cGreen
     } else {
-        $msgSkip = if ($isVi) { " [->] Bỏ qua Prefetch & System Temp." } else { " [->] Skipped Prefetch & System Temp." }
+        $msgSkip = T " [->] Bỏ qua Prefetch & System Temp." " [->] Skipped Prefetch & System Temp."
         Write-LeftConsole $msgSkip $cYellow
         Write-RightLog "WARN" (T "Đã bỏ qua Prefetch và Temp hệ thống (Cần quyền quản trị viên)" "Skipped Prefetch & System Temp (Admin rights required)") $cYellow
     }
@@ -3716,7 +3948,7 @@ function Invoke-QuickClean($autoMode = $false) {
 
     Invoke-ScriptWithSpinner { try { Clear-RecycleBin -Force -Confirm:$false -ErrorAction SilentlyContinue } catch {} } $msgRecycleIn $cYellow
 
-    $msgRecycleOk = if ($isVi) { " [OK] Đã làm rỗng Thùng rác." } else { " [OK] Recycle Bin emptied." }
+    $msgRecycleOk = T " [OK] Đã làm rỗng Thùng rác." " [OK] Recycle Bin emptied."
     Update-LeftConsoleLine $msgRecycleOk $cGreen
     Write-RightLog "OUT" (T "Đã dọn sạch Thùng rác" "Emptied Recycle Bin") $cGreen
 
@@ -3730,7 +3962,7 @@ function Invoke-QuickClean($autoMode = $false) {
     [long]$totalFreedBytes = [math]::Max(0L, ($freeAfter - $freeBefore))
 
     $formattedSize = Format-BytesAuto $totalFreedBytes
-    $msgDone = if ($isVi) { " [>>] Dọn dẹp nhanh hoàn tất!" } else { " [>>] Quick Cleanup completed!" }
+    $msgDone = T " [>>] Dọn dẹp nhanh hoàn tất!" " [>>] Quick Cleanup completed!"
     Write-LeftConsole $msgDone $cCyan
 
     Write-RightLog "OUT" (T "Dọn dẹp nhanh hoàn tất. Đã giải phóng: $formattedSize" "Quick Cleanup completed. Freed: $formattedSize") $cGreen
@@ -3887,7 +4119,8 @@ function Invoke-EdgeFix() {
         Write-LeftConsole " [1] $opt1Text$tag1" $(if ($isApplied) { $cGreen } else { $cWhite })
         Write-LeftConsole " [2] $opt2Text$tag2" $(if (-not $isApplied) { $cGreen } else { $cWhite })
 
-        $eOpt = Wait-SingleKey $null @('1', '2', 'Q')
+        $eOpt = Wait-SingleKey $null @('1', '2', 'Q', 'LANG_CHANGED')
+        if ($eOpt -eq 'LANG_CHANGED') { continue }
         if (-not $eOpt -or $eOpt -in @('Q', 'ESC') -or $script:lastActionEscPressed) { break }
 
         if ($eOpt -eq "1") {
@@ -4049,7 +4282,8 @@ function Invoke-PowerPlan() {
         Write-LeftConsole (T " [D] Xóa bớt cấu hình tùy chỉnh" " [D] Delete Inactive Scheme") $cRed
         $validKeys += @('A', 'R', 'D')
 
-        $sel = Wait-SingleKey $null ($validKeys + @('Q'))
+        $sel = Wait-SingleKey $null ($validKeys + @('Q', 'LANG_CHANGED'))
+        if ($sel -eq 'LANG_CHANGED') { continue }
         if (-not $sel -or $sel -in @('Q', 'ESC') -or $script:lastActionEscPressed) { break }
 
         if ($sel -in @('1','2','3','4','5')) {
@@ -4177,7 +4411,8 @@ function Invoke-VisualEffects() {
         Write-LeftConsole " [3] $(T 'Mặc định Windows' 'Windows Default')$tag3" $(if ($curSetting -eq 0) { $cGreen } else { $cWhite })
         Write-LeftConsole " [4] $(T 'Giao diện đẹp nhất' 'Best Appearance')$tag4" $(if ($curSetting -eq 1) { $cGreen } else { $cWhite })
 
-        $v = Wait-SingleKey (T "Chọn tùy chọn [1-4]" "Select option [1-4]") @("1","2","3","4","Q")
+        $v = Wait-SingleKey (T "Chọn tùy chọn [1-4]" "Select option [1-4]") @("1","2","3","4","Q","LANG_CHANGED")
+        if ($v -eq 'LANG_CHANGED') { continue }
         if (-not $v -or $v -in @("Q", "ESC") -or $script:lastActionEscPressed) { break }
 
         if ($v -in @("1","2","3","4")) {
@@ -4242,7 +4477,8 @@ function Invoke-ToggleContextMenu() {
         Write-LeftConsole " [1] $(T 'Bật Menu cổ điển Windows 10' 'Enable Windows 10 Classic Menu')$tag1" $(if ($isClassic) { $cGreen } else { $cWhite })
         Write-LeftConsole " [2] $(T 'Khôi phục Menu mặc định Windows 11' 'Restore Windows 11 Default Menu')$tag2" $(if (-not $isClassic) { $cGreen } else { $cWhite })
 
-        $choice = Wait-SingleKey (T "Chọn tùy chọn [1-2]" "Select option [1-2]") @('1', '2', 'Q')
+        $choice = Wait-SingleKey (T "Chọn tùy chọn [1-2]" "Select option [1-2]") @('1', '2', 'Q', 'LANG_CHANGED')
+        if ($choice -eq 'LANG_CHANGED') { continue }
         if (-not $choice -or $choice -in @('Q', 'ESC') -or $script:lastActionEscPressed) { break }
 
         if ($choice -eq '1') {
@@ -6654,7 +6890,8 @@ function Invoke-ScreenPowerMenu() {
         Write-LeftConsole (T " [1] Tắt màn hình ngay" " [1] Turn Off Screen Now") $cLightGreen
         Write-LeftConsole (T " [2] Tạo lối tắt tắt màn hình" " [2] Create Screen Shortcut") $cCyan
 
-        $choice = Wait-SingleKey $null @('1', '2', 'Q')
+        $choice = Wait-SingleKey $null @('1', '2', 'Q', 'LANG_CHANGED')
+        if ($choice -eq 'LANG_CHANGED') { continue }
         if (-not $choice -or $choice -in @('Q', 'ESC') -or $script:lastActionEscPressed) { break }
 
         if ($choice -eq '1') {
@@ -6670,6 +6907,7 @@ function Invoke-ScreenPowerMenu() {
                 }
             }
             if ($script:win32ScreenType) {
+                Start-Sleep -Milliseconds 600
                 $script:win32ScreenType::SendMessage(-1, 0x0112, 0xF170, 2) | Out-Null
             }
 
@@ -6733,16 +6971,27 @@ function Invoke-CreateRestorePoint() {
     Start-ActionView "TẠO ĐIỂM KHÔI PHỤC HỆ THỐNG" $cPurp "CREATE RESTORE POINT"
     $rpScript = "try { Enable-ComputerRestore -Drive '$sysDrive' -ErrorAction SilentlyContinue; `$w = `$null; Checkpoint-Computer -Description 'WCaO_Backup' -RestorePointType 'MODIFY_SETTINGS' -WarningVariable w -WarningAction SilentlyContinue -ErrorAction Stop; if (`$w) { return `$false }; return `$true } catch { return `$false }"
     $rpRes = Invoke-ActionWithSpinner $rpScript (T "Đang tạo điểm khôi phục..." "Creating Restore Point...") $cYellow 8
-    $rpOk = (@($rpRes) -contains $true)
-    if ($rpOk) {
-        Update-LeftConsoleLine (T " [OK] Đã tạo điểm khôi phục thành công." " [OK] Restore Point created.") $cGreen
-        Set-Activity "OK" (T "Hoàn thành: Tạo điểm khôi phục" "Done: Create Restore Point") $cGreen
-    } else {
-        Update-LeftConsoleLine (T " [!] Không thể tạo điểm khôi phục (giới hạn 24h hoặc VSS bị tắt)." " [!] Could not create Restore Point (24h limit or VSS disabled).") $cYellow
-        Set-Activity "!" (T "Không thể tạo điểm khôi phục" "Restore Point failed") $cYellow
+        $rpOk = (@($rpRes) -contains $true)
+    $renderRpResult = {
+        Clear-LeftPane
+        if ($rpOk) {
+            Write-LeftConsole (T " [OK] Đã tạo điểm khôi phục thành công." " [OK] Restore Point created.") $cGreen
+            Set-Activity "OK" (T "Hoàn thành: Tạo điểm khôi phục" "Done: Create Restore Point") $cGreen
+        } else {
+            Write-LeftConsole (T " [!] Không thể tạo điểm khôi phục (giới hạn 24h hoặc VSS bị tắt)." " [!] Could not create Restore Point (24h limit or VSS disabled).") $cYellow
+            Set-Activity "!" (T "Không thể tạo điểm khôi phục" "Restore Point failed") $cYellow
+        }
+        Write-LeftConsole (T " [i] Lưu ý: Windows chỉ cho phép tạo 1 điểm khôi phục mỗi 24 giờ theo mặc định." " [i] Note: Windows allows only 1 restore point per 24 hours by default.") $cDim
+        Show-LeftBackButton
+        Draw-FooterBar
     }
-    Write-LeftConsole (T " [i] Lưu ý: Windows chỉ cho phép tạo 1 điểm khôi phục mỗi 24 giờ theo mặc định." " [i] Note: Windows allows only 1 restore point per 24 hours by default.") $cDim
-    Wait-LeftReturn
+    $global:onLanguageChanged = $renderRpResult
+    try {
+        & $renderRpResult
+        Wait-LeftReturn
+    } finally {
+        $global:onLanguageChanged = $null
+    }
 }
 
 # --- [5.3] Pagefile & Hibernation ---
@@ -6775,7 +7024,8 @@ function Invoke-PagefileMenu() {
         Write-LeftConsole " [3] $(T 'Tắt chế độ ngủ đông' 'Disable hibernation')$tagHiberOff" $(if (-not $hiberOn) { $cGreen } else { $cWhite })
         Write-LeftConsole " [4] $(T 'Bật chế độ ngủ đông' 'Enable hibernation')$tagHiberOn" $(if ($hiberOn) { $cGreen } else { $cWhite })
 
-        $pf = Wait-SingleKey (T "Chọn thao tác [1-4]" "Select option [1-4]") @('1', '2', '3', '4', 'Q')
+        $pf = Wait-SingleKey (T "Chọn thao tác [1-4]" "Select option [1-4]") @('1', '2', '3', '4', 'Q', 'LANG_CHANGED')
+        if ($pf -eq 'LANG_CHANGED') { continue }
         if (-not $pf -or $pf -in @('Q', 'ESC') -or $script:lastActionEscPressed) { break }
 
         if ($pf -eq "1") {
@@ -6999,16 +7249,25 @@ function Invoke-QuickRenamePro {
                 $hovItem = $qrModes | Where-Object { $_.Key -eq $activeHover } | Select-Object -First 1
                 if ($hovItem) { if ($global:selectedLang -eq "Vietnamese") { $hovItem.ExVi } else { $hovItem.ExEn } }
             } else {
-                if ($global:selectedLang -eq "Vietnamese") { " Di chuột xem ví dụ | Phím/Click chọn" } else { " Hover for example | Key/Click to select" }
+                if ($global:selectedLang -eq "Vietnamese") { " Di chuột xem ví dụ | Phím/Click chọn" } else { " Hover for info | Key/Click to select" }
             }
-            Write-LeftConsole " $initEx" $cLightCyan
+            Write-LeftConsole $initEx $cLightCyan
+            Set-CursorPos 2 21; Write-Host (' ' * 39) -NoNewline
         }
+
+        $global:onLanguageChanged = { Draw-RenameScreen $hoverKey }
 
         Draw-RenameScreen $hoverKey $true
 
         # ConsoleMouse interactive loop for Quick Rename
         $hInput = [ConsoleMouse]::GetStdHandle([ConsoleMouse]::STD_INPUT_HANDLE)
-        try { [ConsoleMouse]::FlushConsoleInputBuffer($hInput) | Out-Null } catch {}
+        try {
+            $inMode = 0
+            [ConsoleMouse]::GetConsoleMode($hInput, [ref]$inMode) | Out-Null
+            $inMode = ($inMode -band (-bnot [ConsoleMouse]::ENABLE_QUICK_EDIT_MODE)) -bor [ConsoleMouse]::ENABLE_MOUSE_INPUT -bor [ConsoleMouse]::ENABLE_EXTENDED_FLAGS
+            [ConsoleMouse]::SetConsoleMode($hInput, $inMode) | Out-Null
+            [ConsoleMouse]::FlushConsoleInputBuffer($hInput) | Out-Null
+        } catch {}
         $records = New-Object ConsoleMouse+INPUT_RECORD[] 64
 
         $selectedOption = $null
@@ -7084,14 +7343,8 @@ function Invoke-QuickRenamePro {
 
                     # Hover detection for QR items
                     $newHov = $null
-                    if ($posX -ge 2 -and $posX -le 40) {
-                        foreach ($k in $script:qrItemBounds.Keys) {
-                            $b = $script:qrItemBounds[$k]
-                            if ($posY -ge $b.StartY -and $posY -le $b.EndY) {
-                                $newHov = $k
-                                break
-                            }
-                        }
+                    if ($posX -ge 2 -and $posX -le 40 -and $posY -ge 8 -and $posY -le (8 + $qrModes.Count - 1)) {
+                        $newHov = $qrModes[$posY - 8].Key
                     }
                     if ($newHov -ne $hoverKey) {
                         if ($hoverKey -and $script:qrItemBounds.ContainsKey($hoverKey)) {
@@ -7100,7 +7353,7 @@ function Invoke-QuickRenamePro {
                         if ($newHov -and $script:qrItemBounds.ContainsKey($newHov)) {
                             Render-QrRow $script:qrItemBounds[$newHov].Index $true
                         } else {
-                            $defEx = if ($global:selectedLang -eq "Vietnamese") { " Di chuột xem ví dụ | Phím/Click chọn" } else { " Hover for example | Key/Click to select" }
+                            $defEx = if ($global:selectedLang -eq "Vietnamese") { " Di chuột xem ví dụ | Phím/Click chọn" } else { " Hover for info | Key/Click to select" }
                             if ($defEx.Length -gt 38) { $defEx = $defEx.Substring(0, 38) } else { $defEx = $defEx.PadRight(38) }
                             Set-CursorPos 2 20
                             [Console]::Write("$cLightCyan$defEx $cReset")
@@ -7118,11 +7371,15 @@ function Invoke-QuickRenamePro {
                             $waitingForChoice = $false
                             break
                         }
-                        if ($hoverKey) {
-                            $selectedOption = $hoverKey
-                            $waitingForChoice = $false
-                            break
+                        if ($posX -ge 2 -and $posX -le 40 -and $posY -ge 8 -and $posY -le (8 + $qrModes.Count - 1)) {
+                            $clickedIdx = $posY - 8
+                            if ($clickedIdx -ge 0 -and $clickedIdx -lt $qrModes.Count) {
+                                $selectedOption = $qrModes[$clickedIdx].Key
+                                $waitingForChoice = $false
+                                break
+                            }
                         }
+
                         $prevLang = $global:selectedLang
                         $res = Handle-GlobalClick $posX $posY
                         if ($res -eq "LANG_CHANGED" -or ($res -eq "HANDLED" -and $global:selectedLang -ne $prevLang)) {
@@ -7136,6 +7393,7 @@ function Invoke-QuickRenamePro {
         }
 
         if (-not $selectedOption -or $selectedOption -eq 'ESC') {
+            $global:onLanguageChanged = $null
             $leftConsoleLines.Clear()
             $global:currentActionName = $null
             $global:currentActionBorderColor = $null
@@ -7424,11 +7682,22 @@ function Invoke-RemoveWindowsOld() {
         Invoke-ScriptWithSpinner { Remove-Item -LiteralPath $wOld -Recurse -Force -EA SilentlyContinue } $msgDelOld $cYellow
         Update-LeftConsoleLine (T " [OK] Đã xóa thư mục Windows.old." " [OK] Windows.old removed.") $cGreen
         Set-Activity "OK" (T "Hoàn thành: Xóa Windows.old" "Done: Removed Windows.old") $cGreen
-    } else {
-        Write-LeftConsole (T "[!] Không tìm thấy thư mục Windows.old." "[!] Windows.old not found.") $cYellow
+        } else {
+        $renderNotFound = {
+            Clear-LeftPane
+        Write-LeftConsole (T " [!] Không tìm thấy thư mục Windows.old." " [!] Windows.old not found.") $cYellow
         Set-Activity "!" (T "Không tìm thấy Windows.old" "Windows.old not found") $cYellow
+            Show-LeftBackButton
+            Draw-FooterBar
+        }
+        $global:onLanguageChanged = $renderNotFound
+        try {
+            & $renderNotFound
+            Wait-LeftReturn
+        } finally {
+            $global:onLanguageChanged = $null
+        }
     }
-    Wait-LeftReturn
 }
 
 # --- [5.6] Winget Power Tools ---
@@ -9136,10 +9405,12 @@ function Draw-StartupAnimation($initTask = $null) {
         $renderedCount++
 
         $isDone = if ($asyncResult) { $asyncResult.IsCompleted } else { $true }
-        if ([Console]::KeyAvailable) {
-            $null = [Console]::ReadKey($true)
-            if ($isDone) { break }
-        }
+        try {
+            if ([Console]::KeyAvailable) {
+                $null = [Console]::ReadKey($true)
+                if ($isDone) { break }
+            }
+        } catch {}
 
         Start-Sleep -Milliseconds 150
 
